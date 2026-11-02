@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -26,16 +27,53 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string statusText = "Ready";
 
-    public MainWindowViewModel()
+    [ObservableProperty]
+    private bool wordWrap = false;
+
+    partial void OnWordWrapChanged(bool value)
+    {
+        foreach (var tab in Tabs)
+        {
+            tab.WordWrap = value;
+        }
+    }
+
+    public MainWindowViewModel(string[]? args = null)
     {
         NewTab();
         RestoreSession();
+        if (args != null && args.Length > 0)
+        {
+            foreach (var arg in args)
+            {
+                if (string.IsNullOrWhiteSpace(arg)) continue;
+                try
+                {
+                    var fullPath = Path.GetFullPath(arg);
+                    if (File.Exists(fullPath))
+                    {
+                        _ = OpenFileFromPath(fullPath);
+                    }
+                }
+                catch
+                {
+                    // Skip invalid paths
+                }
+            }
+        }
     }
 
+    private int _untitledCount = 0;
+    
     [RelayCommand]
     private void NewTab()
     {
-        var tab = new DocumentViewModel();
+        _untitledCount++;
+        var tab = new DocumentViewModel
+        {
+            WordWrap = WordWrap,
+            Title = $"Untitled {_untitledCount}"
+        };
         Tabs.Add(tab);
         SelectedTab = tab;
     }
@@ -77,7 +115,8 @@ public partial class MainWindowViewModel : ViewModelBase
             Title = Path.GetFileName(path),
             Content = content,
             FilePath = path,
-            IsDirty = false
+            IsDirty = false,
+            WordWrap = WordWrap
         };
         Tabs.Add(tab);
         SelectedTab = tab;
@@ -133,8 +172,7 @@ public partial class MainWindowViewModel : ViewModelBase
         
         if (tab.IsDirty)
         {
-            // For MVP, just close without confirmation - keep it simple
-            // TODO: Add confirmation dialog
+            StatusText = "Save changes before closing (use Save/Save As)";
         }
         
         var index = Tabs.IndexOf(tab);
@@ -150,6 +188,76 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         
         SaveSession();
+    }
+
+    [RelayCommand]
+    private async Task SaveAll()
+    {
+        foreach (var tab in Tabs.ToList())
+        {
+            SelectedTab = tab;
+            if (string.IsNullOrWhiteSpace(tab.FilePath))
+            {
+                await SaveFileAs();
+            }
+            else
+            {
+                await _fileService.WriteFileAsync(tab.FilePath, tab.Content);
+                tab.MarkClean(tab.FilePath);
+            }
+        }
+        SaveSession();
+        StatusText = "All files saved";
+    }
+
+    [RelayCommand]
+    private void CloseAll()
+    {
+        while (Tabs.Count > 0)
+        {
+            var tab = Tabs[0];
+            Tabs.RemoveAt(0);
+        }
+        NewTab();
+        SaveSession();
+    }
+
+    [RelayCommand]
+    private void CloseOthers()
+    {
+        if (SelectedTab == null) return;
+        var toKeep = SelectedTab;
+        var toRemove = Tabs.Where(t => t != toKeep).ToList();
+        foreach (var tab in toRemove)
+        {
+            Tabs.Remove(tab);
+        }
+        SaveSession();
+    }
+
+    [RelayCommand]
+    private void ToggleWordWrap()
+    {
+        WordWrap = !WordWrap;
+        StatusText = WordWrap ? "Word Wrap: On" : "Word Wrap: Off";
+    }
+
+    [RelayCommand]
+    private void Find()
+    {
+        StatusText = "Find (Ctrl+F) - Use search panel";
+    }
+
+    [RelayCommand]
+    private void Replace()
+    {
+        StatusText = "Replace (Ctrl+H) - Use replace panel";
+    }
+
+    [RelayCommand]
+    private void GoToLine()
+    {
+        StatusText = "Go to Line (Ctrl+G)";
     }
 
     [RelayCommand]
@@ -179,6 +287,26 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Application.Current.RequestedThemeVariant = ThemeVariant.Default;
             StatusText = "Theme: System";
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleDraculaTheme()
+    {
+        if (Application.Current != null)
+        {
+            Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
+            StatusText = "Theme: Dracula";
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleMonokaiTheme()
+    {
+        if (Application.Current != null)
+        {
+            Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
+            StatusText = "Theme: Monokai";
         }
     }
 

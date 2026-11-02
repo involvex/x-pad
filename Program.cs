@@ -17,7 +17,7 @@ sealed class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
 #if DEBUG
-            .WithDeveloperTools()
+            // Developer tools may require additional packages in Avalonia 12
 #endif
             .WithInterFont()
             .LogToTrace();
