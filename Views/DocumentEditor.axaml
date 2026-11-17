@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:AvaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             xmlns:vm="using:x_pad.ViewModels"
+             x:Class="x_pad.Views.DocumentEditor"
+             x:DataType="vm:DocumentViewModel">
+    <AvaloniaEdit:TextEditor x:Name="Editor"
+                             ShowLineNumbers="True"
+                             FontFamily="Cascadia Code, JetBrains Mono, Consolas, Courier New, monospace"
+                             FontSize="{Binding FontSize}"
+                             HorizontalScrollBarVisibility="Auto"
+                             VerticalScrollBarVisibility="Auto"
+                             WordWrap="{Binding WordWrap}" />
+</UserControl>

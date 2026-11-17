@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="x-pad.csproj" />
+  <Project Path="x-pad.Tests/x-pad.Tests.csproj" />
+</Solution>

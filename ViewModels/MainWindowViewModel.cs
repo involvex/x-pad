@@ -5,12 +5,16 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
-using Avalonia.Styling;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using x_pad.Models;
 using x_pad.Services;
+using x_pad.Services.Lsp;
+using x_pad.Views;
 
 namespace x_pad.ViewModels;
 
@@ -18,6 +22,9 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly FileService _fileService = new();
     private readonly SessionService _sessionService = new();
+    private readonly SettingsService _settingsService;
+    private readonly LspManager _lspManager;
+    private int _untitledCount;
 
     public ObservableCollection<DocumentViewModel> Tabs { get; } = new();
 
@@ -28,21 +35,22 @@ public partial class MainWindowViewModel : ViewModelBase
     private string statusText = "Ready";
 
     [ObservableProperty]
-    private bool wordWrap = false;
+    private bool wordWrap;
 
-    partial void OnWordWrapChanged(bool value)
-    {
-        foreach (var tab in Tabs)
-        {
-            tab.WordWrap = value;
-        }
-    }
+    public SettingsService Settings => _settingsService;
+    public LspManager Lsp => _lspManager;
 
-    public MainWindowViewModel(string[]? args = null)
+    public MainWindowViewModel(string[]? args = null, SettingsService? settings = null)
     {
-        NewTab();
-        RestoreSession();
-        if (args != null && args.Length > 0)
+        _settingsService = settings ?? new SettingsService();
+        _lspManager = new LspManager(_settingsService);
+        _lspManager.DiagnosticsReceived += OnLspDiagnostics;
+        WordWrap = _settingsService.Current.WordWrap;
+
+        EditorThemeService.ApplyAppTheme(_settingsService.Current.Theme);
+
+        var openedFromArgs = false;
+        if (args != null)
         {
             foreach (var arg in args)
             {
@@ -52,7 +60,8 @@ public partial class MainWindowViewModel : ViewModelBase
                     var fullPath = Path.GetFullPath(arg);
                     if (File.Exists(fullPath))
                     {
-                        _ = OpenFileFromPath(fullPath);
+                        OpenFileSync(fullPath);
+                        openedFromArgs = true;
                     }
                 }
                 catch
@@ -61,10 +70,78 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             }
         }
+
+        if (!openedFromArgs)
+            RestoreSession();
+
+        if (Tabs.Count == 0)
+            NewTab();
     }
 
-    private int _untitledCount = 0;
-    
+    private void OnLspDiagnostics(string uri, IReadOnlyList<Services.Lsp.LspDiagnostic> diagnostics)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (SelectedTab?.FilePath == null)
+                return;
+
+            var selectedUri = new Uri(Path.GetFullPath(SelectedTab.FilePath)).AbsoluteUri;
+            if (!string.Equals(selectedUri, uri, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            StatusText = diagnostics.Count == 0
+                ? "Ready"
+                : $"{diagnostics.Count} diagnostic(s) — {diagnostics[0].Message}";
+        });
+    }
+
+    private void OpenFileSync(string path)
+    {
+        var existing = Tabs.FirstOrDefault(t =>
+            t.FilePath != null &&
+            string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            SelectedTab = existing;
+            return;
+        }
+
+        var snapshot = _fileService.ReadFile(path);
+        var tab = new DocumentViewModel
+        {
+            WordWrap = WordWrap,
+            FontSize = _settingsService.Current.FontSize
+        };
+        tab.ApplySnapshot(snapshot, path);
+        Tabs.Add(tab);
+        SelectedTab = tab;
+    }
+
+    partial void OnWordWrapChanged(bool value)
+    {
+        foreach (var tab in Tabs)
+            tab.WordWrap = value;
+        _settingsService.Update(s => s.WordWrap = value);
+    }
+
+    partial void OnSelectedTabChanged(DocumentViewModel? value)
+    {
+        if (value != null)
+            _ = CheckExternalChangeAsync(value);
+    }
+
+    public void OpenFilesFromExternal(string[] paths)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var path in paths)
+            {
+                if (File.Exists(path))
+                    _ = OpenFileFromPath(path);
+            }
+        });
+    }
+
     [RelayCommand]
     private void NewTab()
     {
@@ -72,17 +149,18 @@ public partial class MainWindowViewModel : ViewModelBase
         var tab = new DocumentViewModel
         {
             WordWrap = WordWrap,
-            Title = $"Untitled {_untitledCount}"
+            FontSize = _settingsService.Current.FontSize
         };
+        tab.SetUntitled($"Untitled {_untitledCount}");
         Tabs.Add(tab);
         SelectedTab = tab;
+        StatusText = "New document";
     }
 
     [RelayCommand]
     private async Task OpenFile()
     {
-        var lifetime = Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
-        var topLevel = lifetime?.MainWindow;
+        var topLevel = GetMainWindow();
         if (topLevel == null) return;
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -92,102 +170,124 @@ public partial class MainWindowViewModel : ViewModelBase
         });
 
         foreach (var file in files)
-        {
             await OpenFileFromPath(file.Path.LocalPath);
-        }
     }
 
-    private async Task OpenFileFromPath(string path)
+    public async Task OpenFileFromPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return;
-        
-        // Check if already open
-        var existing = Tabs.FirstOrDefault(t => t.FilePath == path);
+
+        var existing = Tabs.FirstOrDefault(t =>
+            t.FilePath != null &&
+            string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase));
         if (existing != null)
         {
             SelectedTab = existing;
+            StatusText = $"Already open: {Path.GetFileName(path)}";
             return;
         }
 
-        var content = await _fileService.ReadFileAsync(path);
-        var tab = new DocumentViewModel
+        try
         {
-            Title = Path.GetFileName(path),
-            Content = content,
-            FilePath = path,
-            IsDirty = false,
-            WordWrap = WordWrap
-        };
-        Tabs.Add(tab);
-        SelectedTab = tab;
+            var snapshot = await _fileService.ReadFileAsync(path);
+            var tab = new DocumentViewModel
+            {
+                WordWrap = WordWrap,
+                FontSize = _settingsService.Current.FontSize
+            };
+            tab.ApplySnapshot(snapshot, path);
+            Tabs.Add(tab);
+            SelectedTab = tab;
+
+            // Drop the initial empty untitled tab if it was the only placeholder
+            var emptyUntitled = Tabs.FirstOrDefault(t =>
+                t != tab && t.FilePath == null && !t.IsDirty && string.IsNullOrEmpty(t.Text));
+            if (emptyUntitled != null && Tabs.Count > 1)
+                Tabs.Remove(emptyUntitled);
+
+            SaveSession();
+            StatusText = $"Opened {Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Open failed: {ex.Message}";
+        }
     }
 
     [RelayCommand]
     private async Task SaveFile()
     {
         if (SelectedTab == null) return;
-        
-        if (string.IsNullOrWhiteSpace(SelectedTab.FilePath))
-        {
-            await SaveFileAs();
-            return;
-        }
-
-        await _fileService.WriteFileAsync(SelectedTab.FilePath, SelectedTab.Content);
-        SelectedTab.MarkClean(SelectedTab.FilePath);
-        SaveSession();
+        await SaveTabAsync(SelectedTab);
     }
 
     [RelayCommand]
     private async Task SaveFileAs()
     {
         if (SelectedTab == null) return;
-        
-        var lifetime = Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
-        var topLevel = lifetime?.MainWindow;
-        if (topLevel == null) return;
+        await SaveTabAsAsync(SelectedTab);
+    }
+
+    private async Task<bool> SaveTabAsync(DocumentViewModel tab)
+    {
+        if (string.IsNullOrWhiteSpace(tab.FilePath))
+            return await SaveTabAsAsync(tab);
+
+        try
+        {
+            await _fileService.WriteFileAsync(
+                tab.FilePath,
+                tab.Text,
+                tab.TextEncoding,
+                tab.HasBom,
+                tab.LineEndingKind);
+            tab.MarkClean(tab.FilePath);
+            SaveSession();
+            StatusText = $"Saved {Path.GetFileName(tab.FilePath)}";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Save failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    private async Task<bool> SaveTabAsAsync(DocumentViewModel tab)
+    {
+        var topLevel = GetMainWindow();
+        if (topLevel == null) return false;
 
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Save File As",
-            SuggestedFileName = SelectedTab.FilePath != null 
-                ? Path.GetFileName(SelectedTab.FilePath) 
+            SuggestedFileName = tab.FilePath != null
+                ? Path.GetFileName(tab.FilePath)
                 : "Untitled.txt"
         });
 
-        if (file != null)
-        {
-            var path = file.Path.LocalPath;
-            await _fileService.WriteFileAsync(path, SelectedTab.Content);
-            SelectedTab.MarkClean(path);
-            SaveSession();
-        }
-    }
+        if (file == null)
+            return false;
 
-    [RelayCommand]
-    private void CloseTab(DocumentViewModel? tab)
-    {
-        tab ??= SelectedTab;
-        if (tab == null) return;
-        
-        if (tab.IsDirty)
+        var path = file.Path.LocalPath;
+        try
         {
-            StatusText = "Save changes before closing (use Save/Save As)";
+            await _fileService.WriteFileAsync(
+                path,
+                tab.Text,
+                tab.TextEncoding,
+                tab.HasBom,
+                tab.LineEndingKind);
+            tab.MarkClean(path);
+            SaveSession();
+            StatusText = $"Saved {Path.GetFileName(path)}";
+            return true;
         }
-        
-        var index = Tabs.IndexOf(tab);
-        Tabs.Remove(tab);
-        
-        if (Tabs.Count == 0)
+        catch (Exception ex)
         {
-            NewTab();
+            StatusText = $"Save failed: {ex.Message}";
+            return false;
         }
-        else if (SelectedTab == tab)
-        {
-            SelectedTab = Tabs[Math.Max(0, index - 1)];
-        }
-        
-        SaveSession();
     }
 
     [RelayCommand]
@@ -195,44 +295,89 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         foreach (var tab in Tabs.ToList())
         {
-            SelectedTab = tab;
-            if (string.IsNullOrWhiteSpace(tab.FilePath))
-            {
-                await SaveFileAs();
-            }
-            else
-            {
-                await _fileService.WriteFileAsync(tab.FilePath, tab.Content);
-                tab.MarkClean(tab.FilePath);
-            }
+            if (!tab.IsDirty && tab.FilePath != null)
+                continue;
+            var ok = await SaveTabAsync(tab);
+            if (!ok && string.IsNullOrWhiteSpace(tab.FilePath))
+                break;
         }
-        SaveSession();
         StatusText = "All files saved";
     }
 
     [RelayCommand]
-    private void CloseAll()
+    private async Task CloseTab(DocumentViewModel? tab)
     {
-        while (Tabs.Count > 0)
+        tab ??= SelectedTab;
+        if (tab == null) return;
+
+        if (!await ConfirmCloseAsync(tab))
+            return;
+
+        var index = Tabs.IndexOf(tab);
+        Tabs.Remove(tab);
+
+        if (Tabs.Count == 0)
+            NewTab();
+        else if (SelectedTab == null || !Tabs.Contains(SelectedTab))
+            SelectedTab = Tabs[Math.Max(0, Math.Min(index, Tabs.Count - 1))];
+
+        SaveSession();
+    }
+
+    [RelayCommand]
+    private async Task CloseAll()
+    {
+        foreach (var tab in Tabs.ToList())
         {
-            var tab = Tabs[0];
-            Tabs.RemoveAt(0);
+            if (!await ConfirmCloseAsync(tab))
+                return;
+            Tabs.Remove(tab);
         }
         NewTab();
         SaveSession();
     }
 
     [RelayCommand]
-    private void CloseOthers()
+    private async Task CloseOthers()
     {
         if (SelectedTab == null) return;
-        var toKeep = SelectedTab;
-        var toRemove = Tabs.Where(t => t != toKeep).ToList();
-        foreach (var tab in toRemove)
+        var keep = SelectedTab;
+        foreach (var tab in Tabs.Where(t => t != keep).ToList())
         {
+            if (!await ConfirmCloseAsync(tab))
+                return;
             Tabs.Remove(tab);
         }
         SaveSession();
+    }
+
+    public async Task<bool> ConfirmCloseAllForExitAsync()
+    {
+        foreach (var tab in Tabs.ToList())
+        {
+            if (!await ConfirmCloseAsync(tab))
+                return false;
+        }
+        return true;
+    }
+
+    private async Task<bool> ConfirmCloseAsync(DocumentViewModel tab)
+    {
+        if (!tab.IsDirty)
+            return true;
+
+        var owner = GetMainWindow();
+        if (owner == null)
+            return true;
+
+        var dialog = new ConfirmSaveWindow(tab.Title);
+        var result = await dialog.ShowDialog<ConfirmSaveResult>(owner);
+        return result switch
+        {
+            ConfirmSaveResult.Discard => true,
+            ConfirmSaveResult.Save => await SaveTabAsync(tab),
+            _ => false
+        };
     }
 
     [RelayCommand]
@@ -245,69 +390,134 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void Find()
     {
-        StatusText = "Find (Ctrl+F) - Use search panel";
+        GetSelectedEditor()?.OpenFind();
+        StatusText = "Find";
     }
 
     [RelayCommand]
     private void Replace()
     {
-        StatusText = "Replace (Ctrl+H) - Use replace panel";
+        GetSelectedEditor()?.OpenReplace();
+        StatusText = "Replace";
     }
 
     [RelayCommand]
-    private void GoToLine()
+    private async Task GoToLine()
     {
-        StatusText = "Go to Line (Ctrl+G)";
-    }
+        if (SelectedTab == null) return;
+        var owner = GetMainWindow();
+        if (owner == null) return;
 
-    [RelayCommand]
-    private void ToggleDarkMode()
-    {
-        if (Application.Current != null)
+        var dialog = new GoToLineWindow(SelectedTab.LineNumber);
+        var ok = await dialog.ShowDialog<bool>(owner);
+        if (ok && dialog.LineNumber is int line)
         {
-            Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
-            StatusText = "Theme: Dark";
+            GetSelectedEditor()?.GoToLine(line);
+            StatusText = $"Line {line}";
         }
     }
 
     [RelayCommand]
-    private void ToggleLightMode()
+    private void ToggleDarkMode() => SetTheme("Dark");
+
+    [RelayCommand]
+    private void ToggleLightMode() => SetTheme("Light");
+
+    [RelayCommand]
+    private void ToggleSystemTheme() => SetTheme("System");
+
+    [RelayCommand]
+    private void ToggleMonokaiTheme() => SetTheme("Monokai");
+
+    private void SetTheme(string theme)
     {
-        if (Application.Current != null)
+        _settingsService.Update(s => s.Theme = theme);
+        EditorThemeService.ApplyAppTheme(theme);
+        StatusText = $"Theme: {theme}";
+    }
+
+    private async Task CheckExternalChangeAsync(DocumentViewModel tab)
+    {
+        if (string.IsNullOrWhiteSpace(tab.FilePath) || tab.LastWriteTimeUtc == null)
+            return;
+
+        try
         {
-            Application.Current.RequestedThemeVariant = ThemeVariant.Light;
-            StatusText = "Theme: Light";
+            var current = File.GetLastWriteTimeUtc(tab.FilePath);
+            if (current <= tab.LastWriteTimeUtc.Value.AddMilliseconds(50))
+                return;
+
+            var owner = GetMainWindow();
+            if (owner == null) return;
+
+            var messageWindow = new Window
+            {
+                Title = "File Changed",
+                Width = 420,
+                Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = false,
+                Content = BuildReloadPanel(tab, out var reload, out var keep)
+            };
+
+            var tcs = new TaskCompletionSource<bool>();
+            reload.Click += (_, _) => { tcs.TrySetResult(true); messageWindow.Close(); };
+            keep.Click += (_, _) => { tcs.TrySetResult(false); messageWindow.Close(); };
+            messageWindow.Closed += (_, _) => tcs.TrySetResult(false);
+
+            _ = messageWindow.ShowDialog(owner);
+            var shouldReload = await tcs.Task;
+            if (!shouldReload)
+            {
+                tab.LastWriteTimeUtc = current;
+                return;
+            }
+
+            var snapshot = await _fileService.ReadFileAsync(tab.FilePath);
+            tab.ApplySnapshot(snapshot, tab.FilePath);
+            StatusText = $"Reloaded {Path.GetFileName(tab.FilePath)}";
+        }
+        catch
+        {
+            // Ignore race conditions
         }
     }
 
-    [RelayCommand]
-    private void ToggleSystemTheme()
+    private static StackPanel BuildReloadPanel(DocumentViewModel tab, out Button reload, out Button keep)
     {
-        if (Application.Current != null)
+        reload = new Button { Content = "Reload", Width = 90, IsDefault = true };
+        keep = new Button { Content = "Keep Mine", Width = 100, IsCancel = true };
+        return new StackPanel
         {
-            Application.Current.RequestedThemeVariant = ThemeVariant.Default;
-            StatusText = "Theme: System";
-        }
+            Margin = new Thickness(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"\"{Path.GetFileName(tab.FilePath)}\" was modified externally. Reload?",
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Spacing = 8,
+                    Children = { reload, keep }
+                }
+            }
+        };
     }
 
-    [RelayCommand]
-    private void ToggleDraculaTheme()
+    private DocumentEditor? GetSelectedEditor()
     {
-        if (Application.Current != null)
-        {
-            Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
-            StatusText = "Theme: Dracula";
-        }
+        return GetMainWindow()?.FindSelectedDocumentEditor();
     }
 
-    [RelayCommand]
-    private void ToggleMonokaiTheme()
+    private static MainWindow? GetMainWindow()
     {
-        if (Application.Current != null)
-        {
-            Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
-            StatusText = "Theme: Monokai";
-        }
+        return (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)
+            ?.MainWindow as MainWindow;
     }
 
     private void SaveSession()
@@ -324,14 +534,27 @@ public partial class MainWindowViewModel : ViewModelBase
         var files = _sessionService.LoadSession();
         foreach (var file in files)
         {
-            if (File.Exists(file))
+            if (!File.Exists(file))
+                continue;
+
+            try
             {
-                _ = OpenFileFromPath(file);
+                var snapshot = _fileService.ReadFile(file);
+                var tab = new DocumentViewModel
+                {
+                    WordWrap = WordWrap,
+                    FontSize = _settingsService.Current.FontSize
+                };
+                tab.ApplySnapshot(snapshot, file);
+                Tabs.Add(tab);
+            }
+            catch
+            {
+                // Skip unreadable session files
             }
         }
-        if (Tabs.Count == 0)
-        {
-            NewTab();
-        }
+
+        if (Tabs.Count > 0)
+            SelectedTab = Tabs[0];
     }
 }

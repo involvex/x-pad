@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="x_pad.Views.ConfirmSaveWindow"
+        Title="Unsaved Changes"
+        Width="420"
+        Height="160"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Save" Click="OnSave" Width="90" IsDefault="True" />
+            <Button Content="Don't Save" Click="OnDiscard" Width="100" />
+            <Button Content="Cancel" Click="OnCancel" Width="90" IsCancel="True" />
+        </StackPanel>
+        <TextBlock x:Name="MessageText"
+                   Text="Save changes?"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Center" />
+    </DockPanel>
+</Window>

@@ -1,11 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:x_pad.ViewModels"
+        xmlns:views="using:x_pad.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
         x:Class="x_pad.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
+        x:Name="RootWindow"
         Icon="/Assets/avalonia-logo.ico"
         Title="{Binding SelectedTab.Title, StringFormat='X-Pad - {0}', FallbackValue='X-Pad'}"
         MinWidth="600"
@@ -32,8 +34,6 @@
                 <MenuItem Header="_Find" Command="{Binding FindCommand}" InputGesture="Ctrl+F" />
                 <MenuItem Header="_Replace" Command="{Binding ReplaceCommand}" InputGesture="Ctrl+H" />
                 <MenuItem Header="_Go to Line" Command="{Binding GoToLineCommand}" InputGesture="Ctrl+G" />
-                <Separator />
-                <MenuItem Header="Select _All" InputGesture="Ctrl+A" />
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="_Word Wrap" Command="{Binding ToggleWordWrapCommand}" InputGesture="Alt+Z" />
@@ -42,21 +42,43 @@
                 <MenuItem Header="_Light Mode" Command="{Binding ToggleLightModeCommand}" />
                 <MenuItem Header="_System Theme" Command="{Binding ToggleSystemThemeCommand}" />
                 <Separator />
-                <MenuItem Header="_Dracula" Command="{Binding ToggleDraculaThemeCommand}" />
                 <MenuItem Header="_Monokai" Command="{Binding ToggleMonokaiThemeCommand}" />
             </MenuItem>
         </Menu>
 
-        <Border DockPanel.Dock="Bottom" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" 
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="8,4">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
-                <TextBlock Grid.Column="0" Text="{Binding StatusText}" VerticalAlignment="Center" FontSize="11" 
+        <Border DockPanel.Dock="Bottom"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusText}"
+                           VerticalAlignment="Center"
+                           FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Grid.Column="1" Text="{Binding SelectedTab.Encoding, FallbackValue='UTF-8'}" Margin="12,0" VerticalAlignment="Center" FontSize="11"
+                <TextBlock Grid.Column="1"
+                           Text="{Binding SelectedTab.Language, FallbackValue='Plain Text'}"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Grid.Column="2" Text="{Binding SelectedTab.LineEnding, FallbackValue='LF'}" Margin="12,0" VerticalAlignment="Center" FontSize="11"
+                <TextBlock Grid.Column="2"
+                           Text="{Binding SelectedTab.Encoding, FallbackValue='UTF-8'}"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Grid.Column="3" Margin="12,0" VerticalAlignment="Center" FontSize="11"
+                <TextBlock Grid.Column="3"
+                           Text="{Binding SelectedTab.LineEnding, FallbackValue='LF'}"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Grid.Column="4"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}">
                     <TextBlock.Text>
                         <MultiBinding StringFormat="Ln {0}, Col {1}">
@@ -65,22 +87,40 @@
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
-                <TextBlock Grid.Column="4" Text="{Binding SelectedTab.LineCount, StringFormat='Lines: {0}'}" Margin="12,0" 
-                           VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Grid.Column="5"
+                           Text="{Binding SelectedTab.LineCount, StringFormat='Lines: {0}'}"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Grid.Column="6"
+                           Text="{Binding SelectedTab.FontSize, StringFormat='{}{0:0}px'}"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
             </Grid>
         </Border>
 
-        <TabControl ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab}" 
-                    Padding="0" TabStripPlacement="Top" Margin="0">
+        <TabControl x:Name="DocumentTabs"
+                    ItemsSource="{Binding Tabs}"
+                    SelectedItem="{Binding SelectedTab}"
+                    Padding="0"
+                    TabStripPlacement="Top"
+                    Margin="0">
             <TabControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DocumentViewModel">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="{Binding Title}" VerticalAlignment="Center">
                             <TextBlock.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="Close" Command="{Binding $parent[TabControl].((vm:MainWindowViewModel)DataContext).CloseTabCommand}" CommandParameter="{Binding}" />
-                                    <MenuItem Header="Close Others" Command="{Binding $parent[TabControl].((vm:MainWindowViewModel)DataContext).CloseOthersCommand}" />
-                                    <MenuItem Header="Close All" Command="{Binding $parent[TabControl].((vm:MainWindowViewModel)DataContext).CloseAllCommand}" />
+                                    <MenuItem Header="Close"
+                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
+                                              CommandParameter="{Binding}" />
+                                    <MenuItem Header="Close Others"
+                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseOthersCommand}" />
+                                    <MenuItem Header="Close All"
+                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseAllCommand}" />
                                 </ContextMenu>
                             </TextBlock.ContextMenu>
                         </TextBlock>
@@ -89,36 +129,9 @@
             </TabControl.ItemTemplate>
             <TabControl.ContentTemplate>
                 <DataTemplate x:DataType="vm:DocumentViewModel">
-                    <TextBox
-                        AcceptsReturn="True"
-                        AcceptsTab="True"
-                        Text="{Binding Content, Mode=TwoWay}"
-                        CaretIndex="{Binding CaretIndex, Mode=TwoWay}"
-                        FontFamily="Cascadia Code, JetBrains Mono, Consolas, Courier New, monospace"
-                        FontSize="13"
-                        BorderThickness="0"
-                        Padding="8,4"
-                        Background="Transparent"
-                        TextWrapping="{Binding TextWrapping}"
-                        ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                        ScrollViewer.VerticalScrollBarVisibility="Auto">
-                        <TextBox.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="Undo" InputGesture="Ctrl+Z" />
-                                <MenuItem Header="Redo" InputGesture="Ctrl+Y" />
-                                <Separator />
-                                <MenuItem Header="Cut" InputGesture="Ctrl+X" />
-                                <MenuItem Header="Copy" InputGesture="Ctrl+C" />
-                                <MenuItem Header="Paste" InputGesture="Ctrl+V" />
-                                <MenuItem Header="Delete" />
-                                <Separator />
-                                <MenuItem Header="Select All" InputGesture="Ctrl+A" />
-                            </ContextMenu>
-                        </TextBox.ContextMenu>
-                    </TextBox>
+                    <views:DocumentEditor />
                 </DataTemplate>
             </TabControl.ContentTemplate>
         </TabControl>
     </DockPanel>
-
 </Window>
