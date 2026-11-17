@@ -42,6 +42,7 @@
         <KeyBinding Gesture="Alt+Z" Command="{Binding ToggleWordWrapCommand}" />
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenPreferencesCommand}" />
         <KeyBinding Gesture="Ctrl+P" Command="{Binding PrintCommand}" />
+        <KeyBinding Gesture="Ctrl+OemTilde" Command="{Binding ToggleTerminalCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding OpenCommandPaletteCommand}" />
         <KeyBinding Gesture="Ctrl+E" Command="{Binding OpenQuickOpenCommand}" />
         <KeyBinding Gesture="Ctrl+D" Command="{Binding DuplicateLineCommand}" />
@@ -92,6 +93,7 @@
                 <MenuItem Header="Save _As..." Command="{Binding SaveFileAsCommand}" InputGesture="Ctrl+Shift+S" />
                 <MenuItem Header="Save A_ll" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Alt+S" />
                 <MenuItem Header="_Print..." Command="{Binding PrintCommand}" InputGesture="Ctrl+P" />
+                <MenuItem Header="Export as P_DF..." Command="{Binding ExportPdfCommand}" />
                 <Separator />
                 <MenuItem Header="Copy Full _Path" Command="{Binding CopyFullPathCommand}" />
                 <MenuItem Header="Reveal in E_xplorer" Command="{Binding RevealInExplorerCommand}" />
@@ -112,6 +114,8 @@
                 <MenuItem Header="_Copy" Command="{Binding CopyCommand}" InputGesture="Ctrl+C" />
                 <MenuItem Header="_Paste" Command="{Binding PasteCommand}" InputGesture="Ctrl+V" />
                 <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="Ctrl+A" />
+                <MenuItem Header="_Invert Selection" Command="{Binding InvertSelectionCommand}" />
+                <MenuItem Header="Search _Web" Command="{Binding SearchWebCommand}" />
                 <Separator />
                 <MenuItem Header="_Duplicate Line" Command="{Binding DuplicateLineCommand}" InputGesture="Ctrl+D" />
                 <MenuItem Header="Move Line _Up" Command="{Binding MoveLineUpCommand}" InputGesture="Alt+Up" />
@@ -148,6 +152,7 @@
                 <MenuItem Header="Always on _Top" Command="{Binding ToggleAlwaysOnTopCommand}" />
                 <MenuItem Header="Split _Vertical" Command="{Binding ToggleSplitVerticalCommand}" />
                 <MenuItem Header="Split _Horizontal" Command="{Binding ToggleSplitHorizontalCommand}" />
+                <MenuItem Header="_Terminal" Command="{Binding ToggleTerminalCommand}" InputGesture="Ctrl+OemTilde" />
                 <MenuItem Header="Next Tab" Command="{Binding NextTabCommand}" InputGesture="Ctrl+Tab" />
                 <MenuItem Header="Previous Tab" Command="{Binding PreviousTabCommand}" InputGesture="Ctrl+Shift+Tab" />
                 <MenuItem Header="Move Tab _Left" Command="{Binding MoveTabLeftCommand}" InputGesture="Ctrl+Shift+PageUp" />
@@ -296,58 +301,83 @@
             </Grid>
         </Border>
 
-        <TabControl x:Name="DocumentTabs"
-                    ItemsSource="{Binding Tabs}"
-                    SelectedItem="{Binding SelectedTab}"
-                    Padding="0"
-                    TabStripPlacement="Top"
-                    Margin="0">
-            <TabControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:DocumentViewModel">
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="6"
-                                Background="Transparent"
-                                PointerPressed="OnTabPointerPressed">
-                        <TextBlock Text="{Binding Title}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,2,0">
-                            <TextBlock.ContextMenu>
-                                <ContextMenu>
-                                    <MenuItem Header="Copy Full Path"
-                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CopyFullPathCommand}" />
-                                    <MenuItem Header="Reveal in Explorer"
-                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RevealInExplorerCommand}" />
-                                    <Separator />
-                                    <MenuItem Header="Close"
-                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
-                                              CommandParameter="{Binding}" />
-                                    <MenuItem Header="Close Others"
-                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseOthersCommand}" />
-                                    <MenuItem Header="Close All"
-                                              Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseAllCommand}" />
-                                </ContextMenu>
-                            </TextBlock.ContextMenu>
-                        </TextBlock>
-                        <Button Content="×"
-                                Width="22"
-                                Height="22"
-                                Padding="0"
-                                FontSize="14"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                VerticalAlignment="Center"
-                                ToolTip.Tip="Close"
-                                Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
-                                CommandParameter="{Binding}" />
-                    </StackPanel>
-                </DataTemplate>
-            </TabControl.ItemTemplate>
-            <TabControl.ContentTemplate>
-                <DataTemplate x:DataType="vm:DocumentViewModel">
-                    <views:DocumentEditor />
-                </DataTemplate>
-            </TabControl.ContentTemplate>
-        </TabControl>
+        <Grid RowDefinitions="*,Auto,Auto">
+            <TabControl Grid.Row="0"
+                        x:Name="DocumentTabs"
+                        ItemsSource="{Binding Tabs}"
+                        SelectedItem="{Binding SelectedTab}"
+                        Padding="0"
+                        TabStripPlacement="Top"
+                        Margin="0">
+                <TabControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DocumentViewModel">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="6"
+                                    Background="Transparent"
+                                    PointerPressed="OnTabPointerPressed">
+                            <TextBlock Text="{Binding Title}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,2,0">
+                                <TextBlock.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Copy Full Path"
+                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CopyFullPathCommand}" />
+                                        <MenuItem Header="Reveal in Explorer"
+                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RevealInExplorerCommand}" />
+                                        <Separator />
+                                        <MenuItem Header="Open With">
+                                            <MenuItem Header="Visual Studio Code"
+                                                      Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenWithVsCodeCommand}"
+                                                      CommandParameter="{Binding}" />
+                                            <MenuItem Header="Cursor"
+                                                      Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenWithCursorCommand}"
+                                                      CommandParameter="{Binding}" />
+                                            <MenuItem Header="Windows Terminal"
+                                                      Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenWithWindowsTerminalCommand}"
+                                                      CommandParameter="{Binding}" />
+                                        </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Close"
+                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
+                                                  CommandParameter="{Binding}" />
+                                        <MenuItem Header="Close Others"
+                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseOthersCommand}" />
+                                        <MenuItem Header="Close All"
+                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseAllCommand}" />
+                                    </ContextMenu>
+                                </TextBlock.ContextMenu>
+                            </TextBlock>
+                            <Button Content="×"
+                                    Width="22"
+                                    Height="22"
+                                    Padding="0"
+                                    FontSize="14"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    VerticalAlignment="Center"
+                                    ToolTip.Tip="Close"
+                                    Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
+                                    CommandParameter="{Binding}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+                <TabControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:DocumentViewModel">
+                        <views:DocumentEditor />
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
+
+            <GridSplitter Grid.Row="1"
+                          Height="4"
+                          ResizeDirection="Rows"
+                          IsVisible="{Binding IsTerminalVisible}" />
+
+            <views:TerminalPanel Grid.Row="2"
+                                 x:Name="TerminalHost"
+                                 Height="220"
+                                 IsVisible="{Binding IsTerminalVisible}" />
+        </Grid>
     </DockPanel>
     </ThemeVariantScope>
 </Window>

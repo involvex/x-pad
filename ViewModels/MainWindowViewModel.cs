@@ -63,7 +63,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool alwaysOnTop;
 
+    [ObservableProperty]
+    private bool isTerminalVisible;
+
     public ObservableCollection<string> RecentFiles { get; } = new();
+
+    public event EventHandler? RecentFilesChanged;
 
     public SettingsService Settings => _settingsService;
     public LspManager Lsp => _lspManager;
@@ -197,6 +202,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (value != null)
             _ = CheckExternalChangeAsync(value);
+
+        if (IsTerminalVisible)
+        {
+            var panel = GetMainWindow()?.FindControl<TerminalPanel>("TerminalHost");
+            panel?.SetWorkingDirectoryHint(value?.FilePath);
+        }
     }
 
     public void CheckSelectedTabForExternalChanges()
@@ -217,14 +228,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void BringMainWindowToFront()
     {
+        TrayService.ShowMainWindow();
         var window = GetMainWindow();
         if (window == null)
             return;
 
-        if (window.WindowState == WindowState.Minimized)
-            window.WindowState = WindowState.Normal;
-
-        window.Activate();
         window.Topmost = true;
         window.Topmost = AlwaysOnTop;
     }
@@ -1252,6 +1260,123 @@ public partial class MainWindowViewModel : ViewModelBase
     private void SelectAll() => GetSelectedEditor()?.TextEditorControl?.SelectAll();
 
     [RelayCommand]
+    private void InvertSelection()
+    {
+        GetSelectedEditor()?.InvertCurrentSelection();
+        StatusText = "Invert selection";
+    }
+
+    [RelayCommand]
+    private void SearchWeb()
+    {
+        var query = GetSelectedEditor()?.GetSearchQuery() ?? "";
+        if (SearchWebHelper.TryOpen(query, out var error))
+        {
+            StatusText = "Opened web search";
+            return;
+        }
+
+        StatusText = string.IsNullOrEmpty(error) ? "Search Web failed" : error;
+    }
+
+    [RelayCommand]
+    private void ToggleTerminal()
+    {
+        IsTerminalVisible = !IsTerminalVisible;
+        StatusText = IsTerminalVisible ? "Terminal shown" : "Terminal hidden";
+        if (!IsTerminalVisible)
+            return;
+
+        var window = GetMainWindow();
+        var panel = window?.FindControl<TerminalPanel>("TerminalHost");
+        panel?.SetWorkingDirectoryHint(SelectedTab?.FilePath);
+        panel?.EnsureStarted();
+    }
+
+    [RelayCommand]
+    private void OpenWithVsCode(object? parameter)
+    {
+        var path = ResolveTabPath(parameter);
+        if (ExternalAppLauncher.TryOpen(ExternalAppKind.VsCode, path, out var error))
+            StatusText = "Opened in VS Code";
+        else
+            StatusText = error;
+    }
+
+    [RelayCommand]
+    private void OpenWithCursor(object? parameter)
+    {
+        var path = ResolveTabPath(parameter);
+        if (ExternalAppLauncher.TryOpen(ExternalAppKind.Cursor, path, out var error))
+            StatusText = "Opened in Cursor";
+        else
+            StatusText = error;
+    }
+
+    [RelayCommand]
+    private void OpenWithWindowsTerminal(object? parameter)
+    {
+        var path = ResolveTabPath(parameter);
+        if (ExternalAppLauncher.TryOpen(ExternalAppKind.WindowsTerminal, path, out var error))
+            StatusText = string.IsNullOrEmpty(error) ? "Opened Windows Terminal" : error;
+        else
+            StatusText = error;
+    }
+
+    private string? ResolveTabPath(object? parameter)
+    {
+        if (parameter is DocumentViewModel tab)
+            return tab.FilePath ?? SelectedTab?.FilePath;
+        return SelectedTab?.FilePath;
+    }
+
+    [RelayCommand]
+    private async Task ExportPdf()
+    {
+        if (SelectedTab == null)
+            return;
+
+        var owner = GetMainWindow();
+        if (owner == null)
+            return;
+
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export as PDF",
+            SuggestedFileName = Path.GetFileNameWithoutExtension(SelectedTab.Title.TrimEnd('*')) + ".pdf",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("PDF") { Patterns = ["*.pdf"] }
+            ]
+        });
+        if (file == null)
+            return;
+
+        var path = file.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            StatusText = "Could not resolve PDF path";
+            return;
+        }
+
+        try
+        {
+            var text = GetSelectedEditor()?.GetExportText() ?? SelectedTab.Text;
+            PdfExportService.ExportPlainText(
+                path,
+                SelectedTab.Title.TrimEnd('*'),
+                text,
+                "Consolas",
+                (float)Math.Clamp(SelectedTab.FontSize, 8, 14));
+            StatusText = $"Exported PDF: {Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"PDF export failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
     private void CycleLineEnding()
     {
         if (SelectedTab == null) return;
@@ -1482,6 +1607,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("File: Reopen Closed Tab", "Ctrl+Shift+T", "File", () => ReopenClosedTab()),
             Entry("File: Close All", null, "File", () => CloseAll()),
             Entry("File: Print…", "Ctrl+P", "File", () => Print()),
+            Entry("File: Export as PDF…", null, "File", () => ExportPdf()),
             Entry("File: Copy Full Path", null, "File", () => CopyFullPath()),
             Entry("File: Reveal in Explorer", null, "File", () => { RevealInExplorer(); return Task.CompletedTask; }),
             Entry("File: Reload from Disk", null, "File", () => ReloadFromDisk()),
@@ -1492,6 +1618,8 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Find Previous", "Shift+F3", "Edit", () => { FindPrevious(); return Task.CompletedTask; }),
             Entry("Edit: Replace…", "Ctrl+H", "Edit", () => { Replace(); return Task.CompletedTask; }),
             Entry("Edit: Find in Open Tabs…", "Ctrl+Shift+F", "Edit", () => FindInOpenTabs()),
+            Entry("Edit: Invert Selection", null, "Edit", () => { InvertSelection(); return Task.CompletedTask; }),
+            Entry("Edit: Search Web", null, "Edit", () => { SearchWeb(); return Task.CompletedTask; }),
             Entry("Edit: Go to Line…", "Ctrl+G", "Edit", () => GoToLine()),
             Entry("Edit: Toggle Line Comment", "Ctrl+/", "Edit", () => { ToggleLineComment(); return Task.CompletedTask; }),
             Entry("Edit: Insert Date/Time", "F5", "Edit", () => { InsertDateTime(); return Task.CompletedTask; }),
@@ -1521,6 +1649,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("View: Always on Top", null, "View", () => { ToggleAlwaysOnTop(); return Task.CompletedTask; }),
             Entry("View: Split Vertical", null, "View", () => { ToggleSplitVertical(); return Task.CompletedTask; }),
             Entry("View: Split Horizontal", null, "View", () => { ToggleSplitHorizontal(); return Task.CompletedTask; }),
+            Entry("View: Toggle Terminal", "Ctrl+`", "View", () => { ToggleTerminal(); return Task.CompletedTask; }),
             Entry("View: Toggle Bookmark", "Ctrl+F2", "View", () => { ToggleBookmark(); return Task.CompletedTask; }),
             Entry("View: Next Bookmark", "F2", "View", () => { NextBookmark(); return Task.CompletedTask; }),
             Entry("View: Previous Bookmark", "Shift+F2", "View", () => { PreviousBookmark(); return Task.CompletedTask; }),
@@ -1651,6 +1780,7 @@ public partial class MainWindowViewModel : ViewModelBase
             s.EnsureFinalNewlineOnSave = dialog.Result.EnsureFinalNewlineOnSave;
             s.BackupOnSave = dialog.Result.BackupOnSave;
             s.AutosaveIntervalSeconds = dialog.Result.AutosaveIntervalSeconds;
+            s.MinimizeToTray = dialog.Result.MinimizeToTray;
             s.LanguageServers = dialog.Result.LanguageServers;
         });
         ConfigureAutosaveTimer();
@@ -1704,6 +1834,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RecentFiles.Clear();
         foreach (var path in _settingsService.Current.RecentFiles)
             RecentFiles.Add(path);
+        RecentFilesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private async Task CheckExternalChangeAsync(DocumentViewModel tab)

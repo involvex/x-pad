@@ -11,6 +11,7 @@ namespace x_pad;
 public partial class App : Application
 {
     public static SingleInstanceService? SingleInstance { get; set; }
+    public static TrayService? Tray { get; private set; }
 
     public override void Initialize()
     {
@@ -26,6 +27,22 @@ public partial class App : Application
             desktop.MainWindow = new MainWindow
             {
                 DataContext = vm
+            };
+
+            try
+            {
+                Tray = new TrayService();
+                Tray.Attach(vm);
+            }
+            catch
+            {
+                // Tray not available on this desktop environment.
+            }
+
+            desktop.Exit += (_, _) =>
+            {
+                Tray?.Dispose();
+                Tray = null;
             };
 
             if (SingleInstance != null)

@@ -15,7 +15,7 @@
         <ScrollViewer>
             <StackPanel Spacing="12">
                 <TextBlock Text="Editor" FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Font size" VerticalAlignment="Center" />
                     <NumericUpDown x:Name="FontSizeBox" Grid.Row="0" Grid.Column="1" Minimum="8" Maximum="48" Increment="1" />
 
@@ -54,6 +54,9 @@
 
                     <TextBlock Grid.Row="12" Grid.Column="0" Text="Autosave (seconds)" VerticalAlignment="Center" />
                     <NumericUpDown x:Name="AutosaveBox" Grid.Row="12" Grid.Column="1" Minimum="0" Maximum="3600" Increment="30" />
+
+                    <TextBlock Grid.Row="13" Grid.Column="0" Text="Minimize to tray" VerticalAlignment="Center" />
+                    <CheckBox x:Name="MinimizeToTrayBox" Grid.Row="13" Grid.Column="1" />
                 </Grid>
 
                 <Separator />

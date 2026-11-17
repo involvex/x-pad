@@ -20,6 +20,8 @@ public sealed class AppSettings
     /// <summary>Autosave interval in seconds for dirty files with a path. 0 disables.</summary>
     public int AutosaveIntervalSeconds { get; set; }
     public bool WordWrap { get; set; }
+    /// <summary>When true, minimizing the main window hides it to the system tray.</summary>
+    public bool MinimizeToTray { get; set; } = true;
     public string Theme { get; set; } = "Dark";
     public List<string> RecentFiles { get; set; } = [];
     public int MaxRecentFiles { get; set; } = 12;

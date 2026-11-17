@@ -62,6 +62,8 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 - Tools: SendTo shortcut + per-user Open With (common text/code types)
 - Reload from disk (prompts when dirty)
 - Themes: Dark / Light / System / Monokai (TextMate)
+- Minimize to tray (pref) with Recent submenu; editor context menu (invert select, Search Web)
+- Tab Open With (VS Code / Cursor / Windows Terminal); Export as PDF; embedded ConPTY terminal (Ctrl+`)
 
 ## Daily-driver smoke checklist
 

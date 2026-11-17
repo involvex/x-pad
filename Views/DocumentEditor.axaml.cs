@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AvaloniaEdit;
@@ -171,6 +172,80 @@ public partial class DocumentEditor : UserControl
         _editor.Focus();
     }
 
+    public void InvertCurrentSelection()
+    {
+        if (_editor?.Document == null)
+            return;
+
+        var start = _editor.SelectionStart;
+        var length = _editor.SelectionLength;
+        var ranges = InvertSelection.ComputeRanges(_editor.Document, start, length);
+        if (ranges.Count == 0)
+        {
+            _editor.Select(0, 0);
+            return;
+        }
+
+        // AvaloniaEdit exposes a single contiguous selection; prefer the larger complement.
+        var best = ranges.OrderByDescending(r => r.Length).First();
+        _editor.Select(best.Start, best.Length);
+        _editor.Focus();
+    }
+
+    public string GetSearchQuery()
+    {
+        if (_editor == null)
+            return "";
+        if (!string.IsNullOrEmpty(_editor.SelectedText))
+            return _editor.SelectedText;
+        return GetWordBeforeCaret();
+    }
+
+    public string GetExportText()
+    {
+        if (_editor == null)
+            return _document?.Text ?? "";
+        if (!string.IsNullOrEmpty(_editor.SelectedText))
+            return _editor.SelectedText;
+        return _editor.Document?.Text ?? _document?.Text ?? "";
+    }
+
+    private void InstallEditorContextMenu(TextEditor editor)
+    {
+        var menu = new ContextMenu();
+        menu.Items.Add(CreateEditorMenuItem("Cu_t", (_, _) => editor.Cut()));
+        menu.Items.Add(CreateEditorMenuItem("_Copy", (_, _) => editor.Copy()));
+        menu.Items.Add(CreateEditorMenuItem("_Paste", (_, _) => editor.Paste()));
+        menu.Items.Add(CreateEditorMenuItem("_Delete", (_, _) =>
+        {
+            if (editor.SelectionLength > 0)
+                editor.Document?.Remove(editor.SelectionStart, editor.SelectionLength);
+        }));
+        menu.Items.Add(CreateEditorMenuItem("Select _All", (_, _) => editor.SelectAll()));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateEditorMenuItem("_Invert Selection", (_, _) => InvertCurrentSelection()));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateEditorMenuItem("_Find...", (_, _) => OpenFind()));
+        menu.Items.Add(CreateEditorMenuItem("_Replace...", (_, _) => OpenReplace()));
+        menu.Items.Add(CreateEditorMenuItem("Search _Web", (_, _) =>
+        {
+            var q = GetSearchQuery();
+            if (SearchWebHelper.TryOpen(q, out var err))
+                return;
+            var window = this.FindAncestorOfType<MainWindow>();
+            if (window?.DataContext is MainWindowViewModel vm)
+                vm.StatusText = string.IsNullOrEmpty(err) ? "Search Web failed" : err;
+        }));
+        editor.ContextMenu = menu;
+    }
+
+    private static MenuItem CreateEditorMenuItem(string header, EventHandler<RoutedEventArgs> onClick)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += onClick;
+        return item;
+    }
+
     public TextEditor? TextEditorControl => _editor;
 
     private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
@@ -257,6 +332,9 @@ public partial class DocumentEditor : UserControl
         ConfigureEditorChrome(_editor);
         if (_editorSecondary != null)
             ConfigureEditorChrome(_editorSecondary);
+
+        InstallEditorContextMenu(_editor);
+        _editor.TextArea.RightClickMovesCaret = true;
 
         _editor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
         _editor.TextArea.TextEntering += OnTextEntering;

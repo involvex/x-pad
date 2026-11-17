@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
@@ -10,6 +11,7 @@ namespace x_pad.Views;
 public partial class MainWindow : Window
 {
     private bool _forceClose;
+    private bool _trayHideInProgress;
 
     public MainWindow()
     {
@@ -17,8 +19,42 @@ public partial class MainWindow : Window
         Opened += OnOpened;
         Activated += OnActivated;
         Closing += OnClosing;
+        PropertyChanged += OnWindowPropertyChanged;
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
+
+        if (this.FindControl<TerminalPanel>("TerminalHost") is { } terminal)
+            terminal.HideRequested += (_, _) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                    vm.IsTerminalVisible = false;
+            };
+    }
+
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != WindowStateProperty)
+            return;
+        if (WindowState != WindowState.Minimized)
+            return;
+        if (DataContext is not MainWindowViewModel vm)
+            return;
+        if (!vm.Settings.Current.MinimizeToTray)
+            return;
+        if (_trayHideInProgress)
+            return;
+
+        _trayHideInProgress = true;
+        try
+        {
+            // Avoid staying as a minimized taskbar ghost when tray owns the surface.
+            WindowState = WindowState.Normal;
+            Hide();
+        }
+        finally
+        {
+            _trayHideInProgress = false;
+        }
     }
 
     private void OnActivated(object? sender, EventArgs e)
