@@ -44,6 +44,10 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
+.smoke-gui/
+crash-stderr.txt
+crash-stdout.txt
+*.zip
 
 # MSBuild Binary and Structured Log
 *.binlog

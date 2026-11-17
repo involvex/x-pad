@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using x_pad.ViewModels;
 
@@ -15,7 +15,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Opened += OnOpened;
+        Activated += OnActivated;
         Closing += OnClosing;
+        AddHandler(DragDrop.DropEvent, OnDrop);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+    }
+
+    private void OnActivated(object? sender, EventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm)
+            vm.CheckSelectedTabForExternalChanges();
     }
 
     public DocumentEditor? FindSelectedDocumentEditor()
@@ -23,6 +32,13 @@ public partial class MainWindow : Window
         return this.GetVisualDescendants()
             .OfType<DocumentEditor>()
             .FirstOrDefault(e => e.IsVisible);
+    }
+
+    public DocumentEditor? FindDocumentEditor(DocumentViewModel tab)
+    {
+        return this.GetVisualDescendants()
+            .OfType<DocumentEditor>()
+            .FirstOrDefault(e => ReferenceEquals(e.DataContext, tab));
     }
 
     private void OnOpened(object? sender, EventArgs e)
@@ -57,5 +73,44 @@ public partial class MainWindow : Window
 
         _forceClose = true;
         Close();
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.DataTransfer.Contains(DataFormat.File)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel vm)
+            return;
+
+        var files = e.DataTransfer.TryGetFiles();
+        if (files == null)
+            return;
+
+        foreach (var item in files)
+        {
+            var path = item.Path.LocalPath;
+            if (System.IO.File.Exists(path))
+                await vm.OpenFileFromPath(path);
+        }
+    }
+
+    private void OnTabPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsMiddleButtonPressed)
+            return;
+        if (sender is not Control control)
+            return;
+        if (control.DataContext is not DocumentViewModel tab)
+            return;
+        if (DataContext is not MainWindowViewModel vm)
+            return;
+
+        e.Handled = true;
+        _ = vm.CloseTabCommand.ExecuteAsync(tab);
     }
 }

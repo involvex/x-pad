@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:x_pad.Views"
+        x:Class="x_pad.Views.FindInOpenTabsWindow"
+        Title="Find in Open Tabs"
+        Width="640"
+        Height="460"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        MinWidth="480"
+        MinHeight="320">
+    <DockPanel Margin="12">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
+            <TextBox x:Name="QueryBox"
+                     Grid.Column="0"
+                     PlaceholderText="Search open tabs…"
+                     FontSize="14" />
+            <CheckBox x:Name="MatchCaseBox"
+                      Grid.Column="1"
+                      Content="Match case"
+                      VerticalAlignment="Center" />
+        </Grid>
+        <TextBlock x:Name="SummaryBox"
+                   DockPanel.Dock="Bottom"
+                   Margin="0,8,0,0"
+                   FontSize="11"
+                   Opacity="0.65"
+                   Text="Enter jump · Esc close" />
+        <ListBox x:Name="ResultsList"
+                 FontSize="12"
+                 DoubleTapped="OnResultsDoubleTapped">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="views:FindHit">
+                    <Grid ColumnDefinitions="160,*" Margin="2,1">
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding Location}"
+                                   Opacity="0.7"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Preview}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="8,0,0,0" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

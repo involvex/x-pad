@@ -45,10 +45,12 @@ public sealed class LspManager : IAsyncDisposable
         return client;
     }
 
-    public async ValueTask DisposeAsync()
+    public async Task ResetAsync()
     {
         foreach (var client in _clients.Values)
             await client.DisposeAsync();
         _clients.Clear();
     }
+
+    public async ValueTask DisposeAsync() => await ResetAsync();
 }

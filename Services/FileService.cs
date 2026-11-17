@@ -32,11 +32,35 @@ public class FileService
         string text,
         Encoding encoding,
         bool hasBom,
-        LineEndingKind lineEnding)
+        LineEndingKind lineEnding,
+        bool backupExisting = false)
     {
+        if (backupExisting)
+            TryCreateBackup(path);
+
         var normalized = NormalizeLineEndings(text, lineEnding);
         var payload = Encode(normalized, encoding, hasBom);
         return File.WriteAllBytesAsync(path, payload);
+    }
+
+    /// <summary>
+    /// Copies an existing file to path.bak (overwrites previous backup).
+    /// </summary>
+    public static bool TryCreateBackup(string path)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                return false;
+
+            var backupPath = path + ".bak";
+            File.Copy(path, backupPath, overwrite: true);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static (Encoding Encoding, bool HasBom, string Text) Decode(byte[] bytes)

@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="x_pad.Views.PreferencesWindow"
+        Title="Preferences"
+        Width="480"
+        Height="640"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+            <Button Content="Cancel" Width="90" Click="OnCancel" IsCancel="True" />
+            <Button Content="Save" Width="90" Click="OnSave" IsDefault="True" />
+        </StackPanel>
+
+        <ScrollViewer>
+            <StackPanel Spacing="12">
+                <TextBlock Text="Editor" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Font size" VerticalAlignment="Center" />
+                    <NumericUpDown x:Name="FontSizeBox" Grid.Row="0" Grid.Column="1" Minimum="8" Maximum="48" Increment="1" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Font family" VerticalAlignment="Center" />
+                    <ComboBox x:Name="FontFamilyBox" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Tab size" VerticalAlignment="Center" />
+                    <NumericUpDown x:Name="TabSizeBox" Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="16" Increment="1" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Insert spaces" VerticalAlignment="Center" />
+                    <CheckBox x:Name="InsertSpacesBox" Grid.Row="3" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Word completion" VerticalAlignment="Center" />
+                    <CheckBox x:Name="WordCompletionBox" Grid.Row="4" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Auto-close brackets" VerticalAlignment="Center" />
+                    <CheckBox x:Name="AutoBracketsBox" Grid.Row="5" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Auto-indent" VerticalAlignment="Center" />
+                    <CheckBox x:Name="AutoIndentBox" Grid.Row="6" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Indent guides" VerticalAlignment="Center" />
+                    <CheckBox x:Name="IndentGuidesBox" Grid.Row="7" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Show whitespace" VerticalAlignment="Center" />
+                    <CheckBox x:Name="WhitespaceBox" Grid.Row="8" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="9" Grid.Column="0" Text="Trim on save" VerticalAlignment="Center" />
+                    <CheckBox x:Name="TrimOnSaveBox" Grid.Row="9" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="10" Grid.Column="0" Text="Final newline on save" VerticalAlignment="Center" />
+                    <CheckBox x:Name="FinalNewlineBox" Grid.Row="10" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="11" Grid.Column="0" Text="Backup on save (.bak)" VerticalAlignment="Center" />
+                    <CheckBox x:Name="BackupOnSaveBox" Grid.Row="11" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="12" Grid.Column="0" Text="Autosave (seconds)" VerticalAlignment="Center" />
+                    <NumericUpDown x:Name="AutosaveBox" Grid.Row="12" Grid.Column="1" Minimum="0" Maximum="3600" Increment="30" />
+                </Grid>
+
+                <Separator />
+                <TextBlock Text="Language servers (optional)" FontWeight="SemiBold" />
+                <TextBlock Text="One per line: language=command --stdio"
+                           Opacity="0.7"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+                <TextBox x:Name="LspBox"
+                         AcceptsReturn="True"
+                         Height="160"
+                         TextWrapping="NoWrap"
+                         FontFamily="Cascadia Code, Consolas, monospace"
+                         FontSize="12" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

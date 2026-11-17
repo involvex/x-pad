@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="x_pad.Views.PrintWindow"
+        Title="Print"
+        Width="420"
+        Height="180"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" Width="90" Click="OnCancel" IsCancel="True" />
+            <Button Content="Print" Width="90" Click="OnPrint" IsDefault="True" />
+        </StackPanel>
+        <StackPanel Spacing="10">
+            <TextBlock Text="Printer" />
+            <ComboBox x:Name="PrinterBox" HorizontalAlignment="Stretch" />
+            <TextBlock x:Name="HintText"
+                       Text="Prints the current document as plain text."
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       FontSize="11" />
+        </StackPanel>
+    </DockPanel>
+</Window>

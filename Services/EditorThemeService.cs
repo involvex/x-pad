@@ -1,6 +1,9 @@
 using System;
+using System.Linq;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using TextMateSharp.Grammars;
 
 namespace x_pad.Services;
@@ -16,33 +19,59 @@ public static class EditorThemeService
         if (Application.Current == null)
             return;
 
+        ThemeVariant variant;
         switch (theme)
         {
             case "Light":
-                Application.Current.RequestedThemeVariant = ThemeVariant.Light;
+                variant = ThemeVariant.Light;
+                Application.Current.RequestedThemeVariant = variant;
                 SetTextMateTheme(ThemeName.LightPlus);
                 break;
             case "System":
-                Application.Current.RequestedThemeVariant = ThemeVariant.Default;
+                variant = ThemeVariant.Default;
+                Application.Current.RequestedThemeVariant = variant;
                 var isDark = Application.Current.ActualThemeVariant == ThemeVariant.Dark;
                 SetTextMateTheme(isDark ? ThemeName.DarkPlus : ThemeName.LightPlus);
                 break;
             case "Monokai":
-                Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
+                variant = ThemeVariant.Dark;
+                Application.Current.RequestedThemeVariant = variant;
                 SetTextMateTheme(ThemeName.Monokai);
                 break;
             default:
-                Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
+                variant = ThemeVariant.Dark;
+                Application.Current.RequestedThemeVariant = variant;
                 SetTextMateTheme(ThemeName.DarkPlus);
                 break;
         }
+
+        // Keep open windows + named chrome scopes in sync (Win32 title bar / menus / tabs).
+        if (Application.Current.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            var scoped = variant == ThemeVariant.Default ? null : variant;
+            foreach (var window in desktop.Windows)
+            {
+                window.RequestedThemeVariant = scoped;
+                foreach (var scope in window.GetVisualDescendants().OfType<ThemeVariantScope>())
+                {
+                    if (scope.Name == "AppChromeScope")
+                        scope.RequestedThemeVariant = scoped ?? ThemeVariant.Default;
+                }
+            }
+        }
     }
 
-    public static void SetTextMateTheme(ThemeName theme)
+    public static void SetTextMateTheme(ThemeName theme, bool force = false)
     {
-        if (CurrentTextMateTheme == theme)
+        if (!force && CurrentTextMateTheme == theme)
             return;
         CurrentTextMateTheme = theme;
         ThemeChanged?.Invoke(theme);
+    }
+
+    /// <summary>Re-apply the current theme so late-created editors pick up TextMate colors.</summary>
+    public static void RefreshCurrentTheme()
+    {
+        SetTextMateTheme(CurrentTextMateTheme, force: true);
     }
 }

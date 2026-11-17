@@ -4,11 +4,57 @@
              xmlns:vm="using:x_pad.ViewModels"
              x:Class="x_pad.Views.DocumentEditor"
              x:DataType="vm:DocumentViewModel">
-    <AvaloniaEdit:TextEditor x:Name="Editor"
-                             ShowLineNumbers="True"
-                             FontFamily="Cascadia Code, JetBrains Mono, Consolas, Courier New, monospace"
-                             FontSize="{Binding FontSize}"
-                             HorizontalScrollBarVisibility="Auto"
-                             VerticalScrollBarVisibility="Auto"
-                             WordWrap="{Binding WordWrap}" />
+    <Grid x:Name="SplitRoot">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="0" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="0" />
+        </Grid.ColumnDefinitions>
+
+        <AvaloniaEdit:TextEditor x:Name="Editor"
+                                 Grid.Row="0"
+                                 Grid.Column="0"
+                                 Grid.RowSpan="3"
+                                 Grid.ColumnSpan="1"
+                                 ShowLineNumbers="True"
+                                 FontFamily="{Binding FontFamily}"
+                                 FontSize="{Binding FontSize}"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"
+                                 WordWrap="{Binding WordWrap}" />
+
+        <GridSplitter x:Name="VerticalSplitter"
+                      Grid.Row="0"
+                      Grid.Column="1"
+                      Grid.RowSpan="3"
+                      Width="4"
+                      ResizeDirection="Columns"
+                      IsVisible="False"
+                      Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+
+        <GridSplitter x:Name="HorizontalSplitter"
+                      Grid.Row="1"
+                      Grid.Column="0"
+                      Grid.ColumnSpan="3"
+                      Height="4"
+                      ResizeDirection="Rows"
+                      IsVisible="False"
+                      Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+
+        <AvaloniaEdit:TextEditor x:Name="EditorSecondary"
+                                 Grid.Row="0"
+                                 Grid.Column="2"
+                                 ShowLineNumbers="True"
+                                 IsVisible="False"
+                                 FontFamily="{Binding FontFamily}"
+                                 FontSize="{Binding FontSize}"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"
+                                 WordWrap="{Binding WordWrap}" />
+    </Grid>
 </UserControl>

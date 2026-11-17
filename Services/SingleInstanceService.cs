@@ -10,19 +10,28 @@ namespace x_pad.Services;
 
 public sealed class SingleInstanceService : IDisposable
 {
-    public const string MutexName = "Local\\XPadSingleInstance";
-    public const string PipeName = "x-pad-instance";
+    public const string DefaultMutexName = "Local\\XPadSingleInstance";
+    public const string DefaultPipeName = "x-pad-instance";
 
     private readonly Mutex _mutex;
     private readonly bool _isPrimary;
+    private readonly string _pipeName;
     private CancellationTokenSource? _listenCts;
 
     public SingleInstanceService()
+        : this(DefaultMutexName, DefaultPipeName)
     {
-        _mutex = new Mutex(true, MutexName, out _isPrimary);
+    }
+
+    public SingleInstanceService(string mutexName, string pipeName)
+    {
+        _pipeName = pipeName;
+        _mutex = new Mutex(true, mutexName, out _isPrimary);
     }
 
     public bool IsPrimary => _isPrimary;
+
+    public string PipeName => _pipeName;
 
     public event Action<string[]>? FilesReceived;
 
@@ -30,8 +39,8 @@ public sealed class SingleInstanceService : IDisposable
     {
         try
         {
-            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
-            client.Connect(500);
+            using var client = new NamedPipeClientStream(".", _pipeName, PipeDirection.Out);
+            client.Connect(2000);
             var payload = JsonSerializer.Serialize(args);
             var bytes = Encoding.UTF8.GetBytes(payload);
             client.Write(bytes);
@@ -60,7 +69,7 @@ public sealed class SingleInstanceService : IDisposable
             try
             {
                 await using var server = new NamedPipeServerStream(
-                    PipeName,
+                    _pipeName,
                     PipeDirection.In,
                     1,
                     PipeTransmissionMode.Byte,
@@ -82,7 +91,14 @@ public sealed class SingleInstanceService : IDisposable
             }
             catch
             {
-                await Task.Delay(200, ct);
+                try
+                {
+                    await Task.Delay(200, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
     }

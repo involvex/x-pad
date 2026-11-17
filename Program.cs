@@ -1,6 +1,8 @@
 ﻿using System;
-using System.IO;
+using System.Runtime.InteropServices;
 using Avalonia;
+using Avalonia.Threading;
+using x_pad.Services;
 
 namespace x_pad;
 
@@ -9,9 +11,28 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception ex)
+                CrashLog.Write(ex);
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            CrashLog.Write(e.Exception);
+            e.SetObserved();
+        };
+
         try
         {
-            using var singleInstance = new Services.SingleInstanceService();
+            if (CliArgs.IsHelpRequest(args))
+            {
+                EnsureConsole();
+                Console.WriteLine(CliArgs.GetHelpText());
+                return;
+            }
+
+            using var singleInstance = new SingleInstanceService();
             if (!singleInstance.IsPrimary)
             {
                 if (singleInstance.TrySendToPrimary(args))
@@ -25,7 +46,7 @@ sealed class Program
         }
         catch (Exception ex)
         {
-            WriteCrashLog(ex);
+            CrashLog.Write(ex);
             throw;
         }
     }
@@ -34,24 +55,30 @@ sealed class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
-            .LogToTrace();
+            .LogToTrace()
+            .AfterSetup(_ =>
+            {
+                Dispatcher.UIThread.UnhandledException += (_, e) =>
+                {
+                    CrashLog.Write(e.Exception);
+                    // Keep the process alive for daily-driver use; details are in crash.log.
+                    e.Handled = true;
+                };
+            });
 
-    private static void WriteCrashLog(Exception ex)
+    private static void EnsureConsole()
     {
-        try
-        {
-            var dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "XPad");
-            Directory.CreateDirectory(dir);
-            var path = Path.Combine(dir, "crash.log");
-            File.WriteAllText(path, $"{DateTime.Now:O}\n{ex}");
-            Console.Error.WriteLine(ex);
-            Console.Error.WriteLine($"Crash log: {path}");
-        }
-        catch
-        {
-            // Last-resort: ignore logging failures
-        }
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        // WinExe has no console; attach to the parent shell when launched from a terminal.
+        if (!AttachConsole(-1))
+            AllocConsole();
     }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AllocConsole();
 }

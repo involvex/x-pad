@@ -49,11 +49,31 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private double fontSize = 13;
 
+    [ObservableProperty]
+    private string fontFamily = "Cascadia Code, JetBrains Mono, Consolas, Courier New, monospace";
+
+    [ObservableProperty]
+    private bool isSplit;
+
+    /// <summary>True = side-by-side, false = stacked.</summary>
+    [ObservableProperty]
+    private bool splitVertical = true;
+
     public LineEndingKind LineEndingKind { get; private set; } = LineEndingKind.Lf;
-    public Encoding TextEncoding { get; private set; } = FileService.CreateUtf8(false);
-    public bool HasBom { get; private set; }
+    public Encoding TextEncoding { get; set; } = FileService.CreateUtf8(false);
+    public bool HasBom { get; set; }
     public DateTime? LastWriteTimeUtc { get; set; }
     public int LspVersion { get; set; } = 1;
+
+    /// <summary>
+    /// When set (e.g. ".cs"), TextMate grammar uses this extension instead of the file path.
+    /// Null = Auto (from file).
+    /// </summary>
+    public string? LanguageOverrideExtension { get; set; }
+
+    /// <summary>One-shot caret restore after session reload (consumed by DocumentEditor).</summary>
+    public int? PendingRestoreLine { get; set; }
+    public int? PendingRestoreColumn { get; set; }
 
     public string Text
     {
@@ -120,6 +140,26 @@ public partial class DocumentViewModel : ViewModelBase
         LineEndingKind = LineEndingKind.Lf;
         LineEnding = "LF";
         Language = "Plain Text";
+        LanguageOverrideExtension = null;
+        Text = "";
+        IsDirty = false;
+    }
+
+    /// <summary>
+    /// Opens a path that does not exist yet (Notepad-style): empty buffer, path set for Save.
+    /// </summary>
+    public void SetNewFile(string path)
+    {
+        FilePath = path;
+        _baseTitle = Path.GetFileName(path);
+        Title = _baseTitle;
+        TextEncoding = FileService.CreateUtf8(false);
+        HasBom = false;
+        Encoding = "UTF-8";
+        LineEndingKind = LineEndingKind.Lf;
+        LineEnding = "LF";
+        LastWriteTimeUtc = null;
+        LanguageOverrideExtension = null;
         Text = "";
         IsDirty = false;
     }
@@ -128,6 +168,34 @@ public partial class DocumentViewModel : ViewModelBase
     {
         LineEndingKind = kind;
         LineEnding = kind.ToDisplay();
+    }
+
+    /// <summary>Restores a closed-tab buffer (path optional). Does not touch LastWriteTimeUtc.</summary>
+    public void RestoreClosedBuffer(
+        string? path,
+        string title,
+        string text,
+        bool dirty,
+        LineEndingKind lineEnding,
+        Encoding encoding,
+        bool hasBom,
+        string encodingName)
+    {
+        FilePath = path;
+        _baseTitle = !string.IsNullOrWhiteSpace(path) ? Path.GetFileName(path) : title;
+        TextEncoding = encoding;
+        HasBom = hasBom;
+        Encoding = encodingName;
+        SetLineEnding(lineEnding);
+        _suppressDirty = true;
+        Document.Text = text ?? "";
+        Document.UndoStack.ClearAll();
+        if (!dirty)
+            Document.UndoStack.MarkAsOriginalFile();
+        _suppressDirty = false;
+        IsDirty = dirty;
+        Title = dirty ? _baseTitle + "*" : _baseTitle;
+        UpdateLineCount();
     }
 
     public void UpdateCaret(int line, int column)

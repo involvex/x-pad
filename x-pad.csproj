@@ -8,6 +8,7 @@
     <AssemblyName>xpad</AssemblyName>
     <RootNamespace>x_pad</RootNamespace>
     <Product>X-Pad</Product>
+    <Version>0.1.0</Version>
     <Description>Modern lightweight notepad with AvaloniaEdit</Description>
     <DefaultItemExcludes>$(DefaultItemExcludes);x-pad.Tests\**</DefaultItemExcludes>
   </PropertyGroup>
@@ -28,6 +29,7 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.4" />
     <PackageReference Include="TextMateSharp.Grammars" Version="2.0.3" />
   </ItemGroup>
 </Project>

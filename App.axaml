@@ -3,14 +3,130 @@
              x:Class="x_pad.App"
              xmlns:local="using:x_pad"
              RequestedThemeVariant="Dark">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
     <Application.DataTemplates>
         <local:ViewLocator />
     </Application.DataTemplates>
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="XPadChromeBrush" Color="#1E1E1E" />
+                    <SolidColorBrush x:Key="XPadChromeAltBrush" Color="#252526" />
+                    <SolidColorBrush x:Key="XPadChromeHoverBrush" Color="#2A2D2E" />
+                    <SolidColorBrush x:Key="XPadChromeTextBrush" Color="#CCCCCC" />
+                    <SolidColorBrush x:Key="XPadChromeTextMutedBrush" Color="#9D9D9D" />
+                    <SolidColorBrush x:Key="XPadAccentBrush" Color="#007ACC" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="XPadChromeBrush" Color="#F3F3F3" />
+                    <SolidColorBrush x:Key="XPadChromeAltBrush" Color="#EEEEEE" />
+                    <SolidColorBrush x:Key="XPadChromeHoverBrush" Color="#E5E5E5" />
+                    <SolidColorBrush x:Key="XPadChromeTextBrush" Color="#1E1E1E" />
+                    <SolidColorBrush x:Key="XPadChromeTextMutedBrush" Color="#616161" />
+                    <SolidColorBrush x:Key="XPadAccentBrush" Color="#0078D4" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeBrush}" />
+            <!-- Chrome UI font (menus/tabs/status). Editor keeps its own monospace pref. -->
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <Style Selector="Menu">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource XPadChromeTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+
+        <Style Selector="Menu /template/ Border#PART_LayoutRoot,
+                         Menu /template/ Border">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeAltBrush}" />
+        </Style>
+
+        <Style Selector="MenuItem">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource XPadChromeTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot,
+                         MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeHoverBrush}" />
+        </Style>
+
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeBrush}" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+
+        <Style Selector="TabControl /template/ ItemsPresenter#PART_ItemsPresenter">
+            <Setter Property="Margin" Value="0" />
+        </Style>
+
+        <Style Selector="TabItem">
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Background" Value="{DynamicResource XPadChromeBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource XPadChromeTextMutedBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0,0,0,2" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+
+        <Style Selector="TabItem:selected">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeAltBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource XPadChromeTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource XPadAccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style Selector="TabItem:pointerover">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeHoverBrush}" />
+        </Style>
+
+        <Style Selector="TabItem:selected:pointerover">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeAltBrush}" />
+        </Style>
+
+        <Style Selector="Border.statusBar">
+            <Setter Property="Background" Value="{DynamicResource XPadChromeAltBrush}" />
+        </Style>
+
+        <Style Selector="Border.statusBar TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="Foreground" Value="{DynamicResource XPadChromeTextMutedBrush}" />
+        </Style>
+
+        <Style Selector="Border.statusBar Button">
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="Foreground" Value="{DynamicResource XPadChromeTextMutedBrush}" />
+        </Style>
+
+        <Style Selector="Button.quiet">
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+
+        <Style Selector="Button.quiet:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+        </Style>
+
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        </Style>
     </Application.Styles>
 </Application>

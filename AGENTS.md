@@ -41,14 +41,40 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 
 ## Features
 
-- Tabbed editing with dirty close prompts
-- AvaloniaEdit: line numbers, TextMate highlighting, SearchPanel, folding, zoom
-- Word completion + optional stdio LSP (completion / hover / diagnostics)
-- Encoding + BOM + CRLF/LF/CR preserved on save
+- Tabbed editing with dirty close prompts, tab × / middle-click / Ctrl+Tab / move tab / reopen closed (`Ctrl+Shift+T`)
+- AvaloniaEdit: line numbers, TextMate highlighting, SearchPanel, folding (fold/unfold all), zoom, indent guides, font family prefs
+- Status-bar language override (TextMate) + encoding / EOL cycle; external-change prompt on tab switch and window focus
+- Bracket match/jump, word highlight, multi-occurrence edit, select line (`Ctrl+L`), auto-indent, line comments
+- Bookmarks (`Ctrl+F2` / `F2` / `Shift+F2`), rectangular selection (Alt+drag)
+- Command palette (`Ctrl+Shift+P`) for actions + recent files
+- Quick Open (`Ctrl+E`) for open tabs + recent files
+- Session restore with selected tab + caret line/column
+- Case/sort/join/trim + remove empty/duplicate lines; insert spaces vs tabs pref; trim + final newline on save; optional `.bak` backup on save
+- Find in open tabs (`Ctrl+Shift+F`)
+- Optional autosave (prefs: interval seconds; 0 = off)
+- Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles)
+- Encoding + BOM + CRLF/LF/CR preserved on save (status bar cycle)
+- Duplicate/move line, show whitespace, print (Windows), always on top
 - Session restore (`%APPDATA%/XPad/session.json`)
-- Settings (`%APPDATA%/XPad/settings.json`)
-- Windows single-instance + named-pipe file handoff
+- Settings / Preferences (`%APPDATA%/XPad/settings.json`)
+- Windows single-instance + named-pipe file handoff; CLI open-or-create paths (`xpad --help`)
+- Copy full path / Reveal in Explorer; status bar shows file path
+- Tools: SendTo shortcut + per-user Open With (common text/code types)
+- Reload from disk (prompts when dirty)
 - Themes: Dark / Light / System / Monokai (TextMate)
+
+## Daily-driver smoke checklist
+
+```bash
+pwsh scripts/smoke-cli.ps1
+pwsh scripts/smoke-single-instance.ps1   # skips if xpad already running
+dotnet run -- path\to\file.txt
+dotnet run -- missing-new.txt          # empty buffer, Save creates file
+pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
+```
+
+Manual: tabs + dirty close, dark theme, syntax highlight, Find/Replace, completions,
+bookmarks, `Ctrl+/` comment, Save trim, Open with → X-Pad.
 
 ## Best Practices
 
@@ -57,3 +83,4 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 - File I/O goes through `FileService` so encoding round-trips stay correct
 - LSP servers are optional and configured in settings; missing servers are ignored
 - Exclude `x-pad.Tests/**` from the WinExe project globs (`DefaultItemExcludes`)
+- UI exceptions are logged to `%APPDATA%/XPad/crash.log` and handled so the process stays up

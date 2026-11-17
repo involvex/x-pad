@@ -22,6 +22,23 @@ public sealed class WordCompletionData : ICompletionData
 
     public void Complete(TextArea textArea, ISegment completionSegment, EventArgs insertionRequestEventArgs)
     {
-        textArea.Document.Replace(completionSegment, Text);
+        var document = textArea.Document;
+        var end = Math.Max(completionSegment.EndOffset, textArea.Caret.Offset);
+        var start = completionSegment.Offset;
+
+        // Expand left so a mistimed StartOffset cannot leave the typed prefix
+        // (e.g. "al" + "alpha" → "alalpha").
+        while (start > 0)
+        {
+            var c = document.GetCharAt(start - 1);
+            if (!char.IsLetterOrDigit(c) && c != '_')
+                break;
+            start--;
+        }
+
+        if (end < start)
+            end = start;
+
+        document.Replace(start, end - start, Text);
     }
 }
