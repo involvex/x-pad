@@ -16,6 +16,7 @@ public class FileService
         var bytes = File.ReadAllBytes(path);
         var (encoding, hasBom, text) = Decode(bytes);
         var info = new FileInfo(path);
+        var isReadOnly = (info.Attributes & FileAttributes.ReadOnly) != 0;
         return new FileSnapshot
         {
             Text = text,
@@ -23,8 +24,59 @@ public class FileService
             EncodingName = FormatEncodingName(encoding, hasBom),
             HasBom = hasBom,
             LineEnding = LineEndingKindExtensions.Detect(text),
-            LastWriteTimeUtc = info.LastWriteTimeUtc
+            LastWriteTimeUtc = info.LastWriteTimeUtc,
+            SourceBytes = bytes,
+            IsReadOnly = isReadOnly,
+            IsLargeFile = LargeFilePolicy.IsLarge(bytes.LongLength)
         };
+    }
+
+    /// <summary>Re-decode previously read bytes with an explicit encoding choice.</summary>
+    public static (Encoding Encoding, bool HasBom, string Text) DecodeWith(
+        byte[] bytes,
+        Encoding encoding,
+        bool hasBom)
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+        ArgumentNullException.ThrowIfNull(encoding);
+
+        var offset = 0;
+        var length = bytes.Length;
+        if (hasBom)
+        {
+            var preamble = encoding.GetPreamble();
+            if (preamble.Length == 0)
+            {
+                if (encoding is UTF8Encoding)
+                    preamble = [0xEF, 0xBB, 0xBF];
+                else if (encoding.CodePage == 1200)
+                    preamble = [0xFF, 0xFE];
+                else if (encoding.CodePage == 1201)
+                    preamble = [0xFE, 0xFF];
+            }
+
+            if (preamble.Length > 0 &&
+                bytes.Length >= preamble.Length &&
+                StartsWith(bytes, preamble))
+            {
+                offset = preamble.Length;
+                length = bytes.Length - offset;
+            }
+        }
+
+        var text = encoding.GetString(bytes, offset, length);
+        return (encoding, hasBom, text);
+    }
+
+    private static bool StartsWith(byte[] bytes, byte[] prefix)
+    {
+        for (var i = 0; i < prefix.Length; i++)
+        {
+            if (bytes[i] != prefix[i])
+                return false;
+        }
+
+        return true;
     }
 
     public Task WriteFileAsync(

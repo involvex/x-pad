@@ -119,8 +119,13 @@
                     <MenuItem Header="UTF-8" Command="{Binding SetEncodingUtf8Command}" />
                     <MenuItem Header="UTF-8 with BOM" Command="{Binding SetEncodingUtf8BomCommand}" />
                     <MenuItem Header="UTF-16 LE" Command="{Binding SetEncodingUtf16LeCommand}" />
+                    <MenuItem Header="UTF-16 BE" Command="{Binding SetEncodingUtf16BeCommand}" />
                     <MenuItem Header="Latin-1" Command="{Binding SetEncodingLatin1Command}" />
                 </MenuItem>
+                <MenuItem Header="Read-_only"
+                         ToggleType="CheckBox"
+                         IsChecked="{Binding SelectedTab.IsReadOnly, Mode=OneWay}"
+                         Command="{Binding ToggleReadOnlyCommand}" />
                 <Separator />
                 <MenuItem Header="E_xit" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
             </MenuItem>
@@ -171,7 +176,8 @@
             <MenuItem Header="_View">
                 <MenuItem Header="_Word Wrap"
                          ToggleType="CheckBox"
-                         IsChecked="{Binding WordWrap}"
+                         IsChecked="{Binding SelectedTab.WordWrap, Mode=OneWay}"
+                         Command="{Binding ToggleWordWrapCommand}"
                          InputGesture="Alt+Z" />
                 <MenuItem Header="Show White_space"
                          ToggleType="CheckBox"
@@ -253,7 +259,7 @@
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="8,4">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0"
                            Text="{Binding StatusText}"
                            VerticalAlignment="Center"
@@ -269,6 +275,20 @@
                            FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <Button Grid.Column="2"
+                        Classes="quiet"
+                        Margin="4,0"
+                        Padding="6,2"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Command="{Binding ToggleReadOnlyCommand}"
+                        ToolTip.Tip="Toggle read-only for this buffer"
+                        IsVisible="{Binding SelectedTab.IsReadOnly}">
+                    <TextBlock Text="RO"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Button>
+                <Button Grid.Column="3"
                         Classes="quiet"
                         Margin="4,0"
                         Padding="6,2"
@@ -303,19 +323,19 @@
                                FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
-                <Button Grid.Column="3"
+                <Button Grid.Column="4"
                         Classes="quiet"
                         Margin="4,0"
                         Padding="6,2"
                         Background="Transparent"
                         BorderThickness="0"
                         Command="{Binding CycleEncodingCommand}"
-                        ToolTip.Tip="Cycle file encoding">
+                        ToolTip.Tip="Cycle file encoding (re-decodes from disk bytes)">
                     <TextBlock Text="{Binding SelectedTab.Encoding, FallbackValue='UTF-8'}"
                                FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
-                <Button Grid.Column="4"
+                <Button Grid.Column="5"
                         Classes="quiet"
                         Margin="4,0"
                         Padding="6,2"
@@ -327,7 +347,7 @@
                                FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
-                <Button Grid.Column="5"
+                <Button Grid.Column="6"
                         Classes="quiet"
                         Margin="4,0"
                         Padding="6,2"
@@ -339,7 +359,7 @@
                                FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
-                <TextBlock Grid.Column="6"
+                <TextBlock Grid.Column="7"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontSize="11"
@@ -351,13 +371,13 @@
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
-                <TextBlock Grid.Column="7"
+                <TextBlock Grid.Column="8"
                            Text="{Binding SelectedTab.LineCount, StringFormat='Lines: {0}'}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Grid.Column="8"
+                <TextBlock Grid.Column="9"
                            Text="{Binding SelectedTab.FontSize, StringFormat='{}{0:0}px'}"
                            Margin="12,0"
                            VerticalAlignment="Center"

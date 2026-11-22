@@ -113,10 +113,10 @@ public static class LanguageHelper
         };
     }
 
-    /// <summary>Line comment prefix for toggle-comment, or null when unsupported.</summary>
-    public static string? GetLineCommentPrefix(string? filePath)
+    /// <summary>Line comment prefix for toggle-comment, or null when unsupported / block-only.</summary>
+    public static string? GetLineCommentPrefix(string? filePath, string? languageOverrideExtension = null)
     {
-        var ext = Path.GetExtension(filePath ?? "").ToLowerInvariant();
+        var ext = ResolveExtension(filePath, languageOverrideExtension);
         return ext switch
         {
             ".py" or ".ps1" or ".psm1" or ".psd1" or ".sh" or ".bash" or ".zsh" or
@@ -128,5 +128,32 @@ public static class LanguageHelper
             "" => "//",
             _ => "//"
         };
+    }
+
+    /// <summary>Block comment delimiters (e.g. HTML/XML), or null when line comments apply.</summary>
+    public static (string Open, string Close)? GetBlockCommentDelimiters(
+        string? filePath,
+        string? languageOverrideExtension = null)
+    {
+        var ext = ResolveExtension(filePath, languageOverrideExtension);
+        return ext switch
+        {
+            ".html" or ".htm" or ".xml" or ".xhtml" or ".svg" => ("<!--", "-->"),
+            ".css" => ("/*", "*/"),
+            _ => null
+        };
+    }
+
+    private static string ResolveExtension(string? filePath, string? languageOverrideExtension)
+    {
+        if (!string.IsNullOrWhiteSpace(languageOverrideExtension))
+        {
+            var overrideExt = languageOverrideExtension.StartsWith('.')
+                ? languageOverrideExtension
+                : "." + languageOverrideExtension;
+            return overrideExt.ToLowerInvariant();
+        }
+
+        return Path.GetExtension(filePath ?? "").ToLowerInvariant();
     }
 }

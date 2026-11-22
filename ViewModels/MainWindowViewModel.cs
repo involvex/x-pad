@@ -28,14 +28,19 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly FileService _fileService = new();
     private readonly SessionService _sessionService = new();
     private readonly FormatService _formatService = new();
+    private readonly RecoveryService _recoveryService = new();
+    private readonly OpenFileWatcher _fileWatcher = new();
     private readonly SettingsService _settingsService;
     private readonly LspManager _lspManager;
     private readonly DispatcherTimer _autosaveTimer;
+    private readonly DispatcherTimer _recoveryTimer;
     private readonly List<ClosedTabSnapshot> _closedTabs = new();
     private const int MaxClosedTabs = 20;
     private int _untitledCount;
     private bool _autosaveRunning;
     private int _externalChangeGate;
+    private int _watcherPromptGate;
+    private bool _recoveryPromptScheduled;
 
     private sealed class ClosedTabSnapshot
     {
@@ -152,6 +157,14 @@ public partial class MainWindowViewModel : ViewModelBase
         _autosaveTimer.Tick += async (_, _) => await AutosaveTickAsync();
         ConfigureAutosaveTimer();
         _settingsService.Changed += ConfigureAutosaveTimer;
+
+        _recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _recoveryTimer.Tick += (_, _) => PersistRecoverySnapshots();
+        _recoveryTimer.Start();
+
+        _fileWatcher.FileChanged += OnWatchedFileChanged;
+        SyncFileWatchers();
+        ScheduleRecoveryPrompt();
     }
 
     private void ConfigureAutosaveTimer()
@@ -234,6 +247,8 @@ public partial class MainWindowViewModel : ViewModelBase
             var snapshot = _fileService.ReadFile(path);
             tab.ApplySnapshot(snapshot, path, preferSpaces);
             RememberRecent(path);
+            if (snapshot.IsLargeFile)
+                StatusText = LargeFilePolicy.StatusMessage(snapshot.SourceBytes?.LongLength ?? 0);
         }
         else
         {
@@ -242,12 +257,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
         Tabs.Add(tab);
         SelectedTab = tab;
+        SyncFileWatchers();
     }
 
     partial void OnWordWrapChanged(bool value)
     {
-        foreach (var tab in Tabs)
-            tab.WordWrap = value;
         _settingsService.Update(s => s.WordWrap = value);
         if (!_suppressViewStatus)
             StatusText = value ? "Word Wrap: On" : "Word Wrap: Off";
@@ -482,7 +496,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 var snapshot = await _fileService.ReadFileAsync(path);
                 tab.ApplySnapshot(snapshot, path, preferSpaces);
                 RememberRecent(path);
-                StatusText = $"Opened {Path.GetFileName(path)}";
+                StatusText = snapshot.IsLargeFile
+                    ? LargeFilePolicy.StatusMessage(snapshot.SourceBytes?.LongLength ?? 0)
+                    : $"Opened {Path.GetFileName(path)}";
             }
             else
             {
@@ -500,6 +516,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 Tabs.Remove(emptyUntitled);
 
             SaveSession();
+            SyncFileWatchers();
         }
         catch (Exception ex)
         {
@@ -541,9 +558,16 @@ public partial class MainWindowViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(tab.FilePath))
             return await SaveTabAsAsync(tab, runFormatOnSave);
 
+        if (tab.IsReadOnly)
+        {
+            StatusText = "File is read-only — use Save As or clear Read-only";
+            return false;
+        }
+
         try
         {
             ApplySaveCleanup(tab);
+            _fileWatcher.IgnoreOwnWrite(tab.FilePath);
             await _fileService.WriteFileAsync(
                 tab.FilePath,
                 tab.Text,
@@ -552,8 +576,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 tab.LineEndingKind,
                 backupExisting: _settingsService.Current.BackupOnSave);
             tab.MarkClean(tab.FilePath);
+            RefreshSourceBytesAfterSave(tab);
             RememberRecent(tab.FilePath);
             SaveSession();
+            PersistRecoverySnapshots();
             StatusText = $"Saved {Path.GetFileName(tab.FilePath)}";
             if (runFormatOnSave)
                 await TryFormatTabAsync(tab, onlyIfFormatOnSave: true);
@@ -563,6 +589,24 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             StatusText = $"Save failed: {ex.Message}";
             return false;
+        }
+    }
+
+    private void RefreshSourceBytesAfterSave(DocumentViewModel tab)
+    {
+        if (string.IsNullOrWhiteSpace(tab.FilePath))
+            return;
+
+        try
+        {
+            tab.SourceBytes = FileService.Encode(tab.Text, tab.TextEncoding, tab.HasBom);
+            var info = new FileInfo(tab.FilePath);
+            tab.IsReadOnly = (info.Attributes & FileAttributes.ReadOnly) != 0;
+            tab.IsLargeFile = LargeFilePolicy.IsLarge(tab.SourceBytes.LongLength);
+        }
+        catch
+        {
+            // Ignore attribute refresh failures
         }
     }
 
@@ -622,6 +666,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             ApplySaveCleanup(tab);
+            _fileWatcher.IgnoreOwnWrite(path);
             await _fileService.WriteFileAsync(
                 path,
                 tab.Text,
@@ -629,9 +674,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 tab.HasBom,
                 tab.LineEndingKind,
                 backupExisting: _settingsService.Current.BackupOnSave && File.Exists(path));
+            tab.IsReadOnly = false;
             tab.MarkClean(path);
+            RefreshSourceBytesAfterSave(tab);
             RememberRecent(path);
             SaveSession();
+            SyncFileWatchers();
+            PersistRecoverySnapshots();
             StatusText = $"Saved {Path.GetFileName(path)}";
             if (runFormatOnSave)
                 await TryFormatTabAsync(tab, onlyIfFormatOnSave: true);
@@ -875,6 +924,9 @@ public partial class MainWindowViewModel : ViewModelBase
             if (!await ConfirmCloseAsync(tab))
                 return false;
         }
+
+        _recoveryService.MarkCleanExit();
+        _fileWatcher.Dispose();
         return true;
     }
 
@@ -900,7 +952,22 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleWordWrap()
     {
-        WordWrap = !WordWrap;
+        if (SelectedTab == null)
+            return;
+
+        SelectedTab.WordWrap = !SelectedTab.WordWrap;
+        StatusText = SelectedTab.WordWrap ? "Word Wrap: On (this tab)" : "Word Wrap: Off (this tab)";
+    }
+
+    [RelayCommand]
+    private void ToggleReadOnly()
+    {
+        if (SelectedTab == null)
+            return;
+
+        SelectedTab.IsReadOnly = !SelectedTab.IsReadOnly;
+        GetSelectedEditor()?.RefreshEditorOptions();
+        StatusText = SelectedTab.IsReadOnly ? "Read-only: On" : "Read-only: Off";
     }
 
     [RelayCommand]
@@ -1712,61 +1779,132 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void CycleEncoding()
+    private async Task CycleEncoding()
     {
         if (SelectedTab == null) return;
         if (!SelectedTab.HasBom && SelectedTab.Encoding.StartsWith("UTF-8", StringComparison.OrdinalIgnoreCase))
-            SetEncodingUtf8Bom();
+            await SetEncodingUtf8Bom();
         else if (SelectedTab.Encoding.Contains("UTF-8", StringComparison.OrdinalIgnoreCase))
-            SetEncodingUtf16Le();
+            await SetEncodingUtf16Le();
+        else if (SelectedTab.Encoding.Contains("UTF-16 LE", StringComparison.OrdinalIgnoreCase))
+            await SetEncodingUtf16Be();
         else if (SelectedTab.Encoding.Contains("UTF-16", StringComparison.OrdinalIgnoreCase))
-            SetEncodingLatin1();
+            await SetEncodingLatin1();
         else
-            SetEncodingUtf8();
+            await SetEncodingUtf8();
     }
 
     [RelayCommand]
-    private void SetEncodingUtf8()
-    {
-        if (SelectedTab == null) return;
-        SelectedTab.TextEncoding = FileService.CreateUtf8(false);
-        SelectedTab.HasBom = false;
-        SelectedTab.Encoding = "UTF-8";
-        MarkDirtyForMetaChange(SelectedTab);
-        StatusText = "Encoding: UTF-8";
-    }
+    private Task SetEncodingUtf8() =>
+        ApplyEncodingAsync(FileService.CreateUtf8(false), hasBom: false, "UTF-8");
 
     [RelayCommand]
-    private void SetEncodingUtf8Bom()
-    {
-        if (SelectedTab == null) return;
-        SelectedTab.TextEncoding = FileService.CreateUtf8(false);
-        SelectedTab.HasBom = true;
-        SelectedTab.Encoding = "UTF-8 BOM";
-        MarkDirtyForMetaChange(SelectedTab);
-        StatusText = "Encoding: UTF-8 BOM";
-    }
+    private Task SetEncodingUtf8Bom() =>
+        ApplyEncodingAsync(FileService.CreateUtf8(false), hasBom: true, "UTF-8 BOM");
 
     [RelayCommand]
-    private void SetEncodingUtf16Le()
-    {
-        if (SelectedTab == null) return;
-        SelectedTab.TextEncoding = new System.Text.UnicodeEncoding(bigEndian: false, byteOrderMark: true);
-        SelectedTab.HasBom = true;
-        SelectedTab.Encoding = "UTF-16 LE";
-        MarkDirtyForMetaChange(SelectedTab);
-        StatusText = "Encoding: UTF-16 LE";
-    }
+    private Task SetEncodingUtf16Le() =>
+        ApplyEncodingAsync(new UnicodeEncoding(bigEndian: false, byteOrderMark: true), hasBom: true, "UTF-16 LE");
 
     [RelayCommand]
-    private void SetEncodingLatin1()
+    private Task SetEncodingUtf16Be() =>
+        ApplyEncodingAsync(new UnicodeEncoding(bigEndian: true, byteOrderMark: true), hasBom: true, "UTF-16 BE");
+
+    [RelayCommand]
+    private Task SetEncodingLatin1() =>
+        ApplyEncodingAsync(Encoding.Latin1, hasBom: false, "LATIN1");
+
+    private async Task ApplyEncodingAsync(Encoding encoding, bool hasBom, string displayName)
     {
-        if (SelectedTab == null) return;
-        SelectedTab.TextEncoding = System.Text.Encoding.Latin1;
-        SelectedTab.HasBom = false;
-        SelectedTab.Encoding = "LATIN1";
-        MarkDirtyForMetaChange(SelectedTab);
-        StatusText = "Encoding: LATIN1";
+        if (SelectedTab == null)
+            return;
+
+        var tab = SelectedTab;
+        var canRedeode = tab.SourceBytes is { Length: > 0 } ||
+                         (!string.IsNullOrWhiteSpace(tab.FilePath) && File.Exists(tab.FilePath));
+
+        if (canRedeode)
+        {
+            if (tab.IsDirty)
+            {
+                var owner = GetMainWindow();
+                if (owner == null)
+                    return;
+
+                if (!await ConfirmEncodingReloadAsync(owner, tab, displayName))
+                    return;
+            }
+
+            try
+            {
+                var bytes = tab.SourceBytes;
+                if (bytes == null || bytes.Length == 0)
+                    bytes = await File.ReadAllBytesAsync(tab.FilePath!);
+
+                var (decodedEncoding, decodedBom, text) = FileService.DecodeWith(bytes, encoding, hasBom);
+                tab.SourceBytes = bytes;
+                tab.ApplyDecodedText(text, decodedEncoding, decodedBom, displayName);
+                GetSelectedEditor()?.RefreshGrammar();
+                GetSelectedEditor()?.RefreshEditorOptions();
+                StatusText = $"Re-decoded as {displayName}";
+                return;
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Re-decode failed: {ex.Message}";
+                return;
+            }
+        }
+
+        tab.TextEncoding = encoding;
+        tab.HasBom = hasBom;
+        tab.Encoding = displayName;
+        MarkDirtyForMetaChange(tab);
+        StatusText = $"Encoding: {displayName}";
+    }
+
+    private static async Task<bool> ConfirmEncodingReloadAsync(
+        Window owner,
+        DocumentViewModel tab,
+        string displayName)
+    {
+        var prompt = new Window
+        {
+            Title = "Reload Encoding",
+            Width = 440,
+            Height = 170,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false
+        };
+        var reload = new Button { Content = "Re-decode", Width = 100, IsDefault = true };
+        var cancel = new Button { Content = "Cancel", Width = 90, IsCancel = true };
+        var tcs = new TaskCompletionSource<bool>();
+        reload.Click += (_, _) => { tcs.TrySetResult(true); prompt.Close(); };
+        cancel.Click += (_, _) => { tcs.TrySetResult(false); prompt.Close(); };
+        prompt.Closed += (_, _) => tcs.TrySetResult(false);
+        prompt.Content = new StackPanel
+        {
+            Margin = new Thickness(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text =
+                        $"Re-decode \"{Path.GetFileName(tab.FilePath) ?? tab.Title.TrimEnd('*')}\" as {displayName} and discard unsaved changes?",
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Spacing = 8,
+                    Children = { cancel, reload }
+                }
+            }
+        };
+        _ = prompt.ShowDialog(owner);
+        return await tcs.Task;
     }
 
     [RelayCommand]
@@ -1955,6 +2093,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("View: Language JavaScript", null, "View", () => { SetLanguage(".js"); return Task.CompletedTask; }),
             Entry("View: Language Markdown", null, "View", () => { SetLanguage(".md"); return Task.CompletedTask; }),
             Entry("View: Toggle Word Wrap", "Alt+Z", "View", () => { ToggleWordWrap(); return Task.CompletedTask; }),
+            Entry("File: Toggle Read-only", null, "File", () => { ToggleReadOnly(); return Task.CompletedTask; }),
             Entry("View: Toggle Whitespace", null, "View", () => { ToggleWhitespace(); return Task.CompletedTask; }),
             Entry("View: Always on Top", null, "View", () => { ToggleAlwaysOnTop(); return Task.CompletedTask; }),
             Entry("View: Split Vertical", null, "View", () => { ToggleSplitVertical(); return Task.CompletedTask; }),
@@ -2113,6 +2252,7 @@ public partial class MainWindowViewModel : ViewModelBase
         });
 
         _suppressViewStatus = true;
+        // WordWrap preference is the default for new tabs; leave open tabs alone.
         WordWrap = dialog.Result.WordWrap;
         ShowWhitespace = dialog.Result.ShowWhitespace;
         _suppressViewStatus = false;
@@ -2127,7 +2267,6 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             tab.FontSize = dialog.Result.FontSize;
             tab.FontFamily = dialog.Result.FontFamily;
-            tab.WordWrap = dialog.Result.WordWrap;
         }
 
         await _lspManager.ResetAsync();
@@ -2496,6 +2635,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 .ToList()
         };
         _sessionService.SaveSession(state);
+        SyncFileWatchers();
     }
 
     private void RestoreSession()
@@ -2534,5 +2674,176 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (Tabs.Count > 0)
             SelectedTab = selected ?? Tabs[0];
+    }
+
+    private void SyncFileWatchers() =>
+        _fileWatcher.Sync(Tabs.Select(t => t.FilePath));
+
+    private void OnWatchedFileChanged(object? sender, string path)
+    {
+        Dispatcher.UIThread.Post(async () =>
+        {
+            if (Interlocked.CompareExchange(ref _watcherPromptGate, 1, 0) != 0)
+                return;
+
+            try
+            {
+                var tab = Tabs.FirstOrDefault(t =>
+                    t.FilePath != null &&
+                    string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase));
+                if (tab == null)
+                    return;
+
+                await CheckExternalChangeAsync(tab);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _watcherPromptGate, 0);
+            }
+        });
+    }
+
+    private void PersistRecoverySnapshots()
+    {
+        try
+        {
+            var entries = Tabs
+                .Where(t => t.IsDirty || (string.IsNullOrWhiteSpace(t.FilePath) && !string.IsNullOrEmpty(t.Text)))
+                .Select(tab => new RecoveryEntry
+                {
+                    Id = tab.RecoveryId,
+                    FilePath = tab.FilePath,
+                    Title = tab.Title.TrimEnd('*'),
+                    Text = tab.Text,
+                    WasDirty = tab.IsDirty || string.IsNullOrWhiteSpace(tab.FilePath),
+                    EncodingName = tab.Encoding,
+                    HasBom = tab.HasBom,
+                    LineEnding = tab.LineEnding,
+                    InsertSpaces = tab.InsertSpaces,
+                    LanguageOverrideExtension = tab.LanguageOverrideExtension,
+                    Line = Math.Max(1, tab.LineNumber),
+                    Column = Math.Max(1, tab.ColumnNumber)
+                })
+                .ToList();
+
+            _recoveryService.ReplaceAll(entries);
+        }
+        catch
+        {
+            // Recovery must never break editing.
+        }
+    }
+
+    private void ScheduleRecoveryPrompt()
+    {
+        if (_recoveryPromptScheduled || !_recoveryService.HasPendingRecovery())
+            return;
+
+        _recoveryPromptScheduled = true;
+        Dispatcher.UIThread.Post(async () => await OfferRecoveryAsync(), DispatcherPriority.Background);
+    }
+
+    private async Task OfferRecoveryAsync()
+    {
+        var entries = _recoveryService.ListEntries();
+        if (entries.Count == 0)
+            return;
+
+        var owner = GetMainWindow();
+        if (owner == null)
+            return;
+
+        var prompt = new Window
+        {
+            Title = "Recover Unsaved Buffers",
+            Width = 460,
+            Height = 180,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false
+        };
+        var restore = new Button { Content = "Restore", Width = 90, IsDefault = true };
+        var discard = new Button { Content = "Discard", Width = 90, IsCancel = true };
+        var tcs = new TaskCompletionSource<bool>();
+        restore.Click += (_, _) => { tcs.TrySetResult(true); prompt.Close(); };
+        discard.Click += (_, _) => { tcs.TrySetResult(false); prompt.Close(); };
+        prompt.Closed += (_, _) => tcs.TrySetResult(false);
+        prompt.Content = new StackPanel
+        {
+            Margin = new Thickness(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"Recover {entries.Count} unsaved buffer(s) from the previous session?",
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Spacing = 8,
+                    Children = { discard, restore }
+                }
+            }
+        };
+        _ = prompt.ShowDialog(owner);
+        if (!await tcs.Task)
+        {
+            _recoveryService.ClearAll();
+            return;
+        }
+
+        foreach (var entry in entries)
+            RestoreRecoveryEntry(entry);
+
+        _recoveryService.ClearAll();
+        StatusText = $"Restored {entries.Count} buffer(s)";
+    }
+
+    private void RestoreRecoveryEntry(RecoveryEntry entry)
+    {
+        var lineEnding = entry.LineEnding.ToUpperInvariant() switch
+        {
+            "CRLF" => LineEndingKind.Crlf,
+            "CR" => LineEndingKind.Cr,
+            _ => LineEndingKind.Lf
+        };
+
+        Encoding encoding = FileService.CreateUtf8(false);
+        var hasBom = entry.HasBom;
+        if (entry.EncodingName.Contains("UTF-16 BE", StringComparison.OrdinalIgnoreCase))
+            encoding = new UnicodeEncoding(true, true);
+        else if (entry.EncodingName.Contains("UTF-16", StringComparison.OrdinalIgnoreCase))
+            encoding = new UnicodeEncoding(false, true);
+        else if (entry.EncodingName.Contains("LATIN", StringComparison.OrdinalIgnoreCase) ||
+                 entry.EncodingName.Contains("ISO-8859", StringComparison.OrdinalIgnoreCase))
+            encoding = Encoding.Latin1;
+
+        var tab = new DocumentViewModel
+        {
+            WordWrap = WordWrap,
+            FontSize = _settingsService.Current.FontSize,
+            FontFamily = _settingsService.Current.FontFamily,
+            RecoveryId = string.IsNullOrWhiteSpace(entry.Id) ? Guid.NewGuid().ToString("N") : entry.Id,
+            LanguageOverrideExtension = entry.LanguageOverrideExtension,
+            PendingRestoreLine = Math.Max(1, entry.Line),
+            PendingRestoreColumn = Math.Max(1, entry.Column)
+        };
+
+        tab.RestoreClosedBuffer(
+            entry.FilePath,
+            entry.Title,
+            entry.Text,
+            entry.WasDirty,
+            lineEnding,
+            encoding,
+            hasBom,
+            string.IsNullOrWhiteSpace(entry.EncodingName) ? "UTF-8" : entry.EncodingName,
+            entry.InsertSpaces);
+
+        Tabs.Add(tab);
+        SelectedTab = tab;
+        SyncFileWatchers();
     }
 }
