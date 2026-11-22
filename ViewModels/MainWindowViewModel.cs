@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -63,10 +65,22 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool wordWrap;
 
     [ObservableProperty]
+    private bool showWhitespace;
+
+    [ObservableProperty]
     private bool alwaysOnTop;
 
     [ObservableProperty]
     private bool isTerminalVisible;
+
+    [ObservableProperty]
+    private string theme = "Dark";
+
+    private readonly UpdateService _updateService = new();
+    private bool _startupUpdateScheduled;
+    private bool _suppressViewStatus;
+    private DocumentViewModel? _splitHookTab;
+    private PropertyChangedEventHandler? _splitHookHandler;
 
     public ObservableCollection<string> RecentFiles { get; } = new();
     public ObservableCollection<string> FavoriteFiles { get; } = new();
@@ -76,12 +90,46 @@ public partial class MainWindowViewModel : ViewModelBase
     public SettingsService Settings => _settingsService;
     public LspManager Lsp => _lspManager;
 
+    public bool IsSplitVerticalActive =>
+        SelectedTab is { IsSplit: true, SplitVertical: true };
+
+    public bool IsSplitHorizontalActive =>
+        SelectedTab is { IsSplit: true, SplitVertical: false };
+
+    public bool IsThemeDark
+    {
+        get => string.Equals(Theme, "Dark", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ApplyTheme("Dark"); }
+    }
+
+    public bool IsThemeLight
+    {
+        get => string.Equals(Theme, "Light", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ApplyTheme("Light"); }
+    }
+
+    public bool IsThemeSystem
+    {
+        get => string.Equals(Theme, "System", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ApplyTheme("System"); }
+    }
+
+    public bool IsThemeMonokai
+    {
+        get => string.Equals(Theme, "Monokai", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ApplyTheme("Monokai"); }
+    }
+
     public MainWindowViewModel(string[]? args = null, SettingsService? settings = null)
     {
         _settingsService = settings ?? new SettingsService();
         _lspManager = new LspManager(_settingsService);
         _lspManager.DiagnosticsReceived += OnLspDiagnostics;
+        _suppressViewStatus = true;
         WordWrap = _settingsService.Current.WordWrap;
+        ShowWhitespace = _settingsService.Current.ShowWhitespace;
+        Theme = _settingsService.Current.Theme;
+        _suppressViewStatus = false;
         RefreshRecentFiles();
         RefreshFavoriteFiles();
 
@@ -201,18 +249,124 @@ public partial class MainWindowViewModel : ViewModelBase
         foreach (var tab in Tabs)
             tab.WordWrap = value;
         _settingsService.Update(s => s.WordWrap = value);
+        if (!_suppressViewStatus)
+            StatusText = value ? "Word Wrap: On" : "Word Wrap: Off";
+    }
+
+    partial void OnShowWhitespaceChanged(bool value)
+    {
+        _settingsService.Update(s => s.ShowWhitespace = value);
+        if (!_suppressViewStatus)
+            StatusText = value ? "Whitespace: On" : "Whitespace: Off";
+    }
+
+    partial void OnAlwaysOnTopChanged(bool value)
+    {
+        if (!_suppressViewStatus)
+            StatusText = value ? "Always on Top: On" : "Always on Top: Off";
+    }
+
+    partial void OnIsTerminalVisibleChanged(bool value)
+    {
+        if (!_suppressViewStatus)
+            StatusText = value ? "Terminal shown" : "Terminal hidden";
+        if (!value)
+            return;
+
+        var window = GetMainWindow();
+        var panel = window?.FindControl<TerminalPanel>("TerminalHost");
+        panel?.SetWorkingDirectoryHint(SelectedTab?.FilePath);
+        panel?.EnsureStarted();
+    }
+
+    partial void OnThemeChanged(string value)
+    {
+        NotifyThemeProperties();
     }
 
     partial void OnSelectedTabChanged(DocumentViewModel? value)
     {
+        HookSelectedTabSplit(value);
+
         if (value != null)
             _ = CheckExternalChangeAsync(value);
+
+        NotifySplitProperties();
 
         if (IsTerminalVisible)
         {
             var panel = GetMainWindow()?.FindControl<TerminalPanel>("TerminalHost");
             panel?.SetWorkingDirectoryHint(value?.FilePath);
         }
+
+        ScheduleStartupUpdateCheck();
+    }
+
+    private void HookSelectedTabSplit(DocumentViewModel? tab)
+    {
+        if (_splitHookTab != null && _splitHookHandler != null)
+            _splitHookTab.PropertyChanged -= _splitHookHandler;
+
+        _splitHookTab = tab;
+        if (tab == null)
+        {
+            _splitHookHandler = null;
+            return;
+        }
+
+        _splitHookHandler = (_, args) =>
+        {
+            if (args.PropertyName is nameof(DocumentViewModel.IsSplit) or nameof(DocumentViewModel.SplitVertical))
+                NotifySplitProperties();
+        };
+        tab.PropertyChanged += _splitHookHandler;
+    }
+
+    private void NotifySplitProperties()
+    {
+        OnPropertyChanged(nameof(IsSplitVerticalActive));
+        OnPropertyChanged(nameof(IsSplitHorizontalActive));
+    }
+
+    private void NotifyThemeProperties()
+    {
+        OnPropertyChanged(nameof(IsThemeDark));
+        OnPropertyChanged(nameof(IsThemeLight));
+        OnPropertyChanged(nameof(IsThemeSystem));
+        OnPropertyChanged(nameof(IsThemeMonokai));
+    }
+
+    private void ApplyTheme(string theme)
+    {
+        if (string.Equals(Theme, theme, StringComparison.OrdinalIgnoreCase))
+        {
+            _settingsService.Update(s => s.Theme = theme);
+            EditorThemeService.ApplyAppTheme(theme);
+            StatusText = $"Theme: {theme}";
+            NotifyThemeProperties();
+            return;
+        }
+
+        Theme = theme;
+        _settingsService.Update(s => s.Theme = theme);
+        EditorThemeService.ApplyAppTheme(theme);
+        StatusText = $"Theme: {theme}";
+    }
+
+    private void ScheduleStartupUpdateCheck()
+    {
+        if (_startupUpdateScheduled)
+            return;
+        _startupUpdateScheduled = true;
+
+        if (!_settingsService.Current.CheckForUpdatesOnStartup)
+            return;
+
+        Dispatcher.UIThread.Post(async () =>
+        {
+            await Task.Delay(2500);
+            await CheckForUpdatesAsync(interactive: false);
+        });
     }
 
     public void CheckSelectedTabForExternalChanges()
@@ -747,15 +901,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ToggleWordWrap()
     {
         WordWrap = !WordWrap;
-        StatusText = WordWrap ? "Word Wrap: On" : "Word Wrap: Off";
     }
 
     [RelayCommand]
     private void ToggleWhitespace()
     {
-        var next = !_settingsService.Current.ShowWhitespace;
-        _settingsService.Update(s => s.ShowWhitespace = next);
-        StatusText = next ? "Whitespace: On" : "Whitespace: Off";
+        ShowWhitespace = !ShowWhitespace;
     }
 
     [RelayCommand]
@@ -1435,14 +1586,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ToggleTerminal()
     {
         IsTerminalVisible = !IsTerminalVisible;
-        StatusText = IsTerminalVisible ? "Terminal shown" : "Terminal hidden";
-        if (!IsTerminalVisible)
-            return;
-
-        var window = GetMainWindow();
-        var panel = window?.FindControl<TerminalPanel>("TerminalHost");
-        panel?.SetWorkingDirectoryHint(SelectedTab?.FilePath);
-        panel?.EnsureStarted();
     }
 
     [RelayCommand]
@@ -1634,12 +1777,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SelectedTab.IsSplit = false;
             StatusText = "Split: Off";
+            NotifySplitProperties();
             return;
         }
 
         SelectedTab.SplitVertical = true;
         SelectedTab.IsSplit = true;
         StatusText = "Split: Vertical";
+        NotifySplitProperties();
     }
 
     [RelayCommand]
@@ -1650,12 +1795,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SelectedTab.IsSplit = false;
             StatusText = "Split: Off";
+            NotifySplitProperties();
             return;
         }
 
         SelectedTab.SplitVertical = false;
         SelectedTab.IsSplit = true;
         StatusText = "Split: Horizontal";
+        NotifySplitProperties();
     }
 
     [RelayCommand]
@@ -1785,6 +1932,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Toggle Line Comment", "Ctrl+/", "Edit", () => { ToggleLineComment(); return Task.CompletedTask; }),
             Entry("Edit: Insert Date/Time", "F5", "Edit", () => { InsertDateTime(); return Task.CompletedTask; }),
             Entry("Edit: Duplicate Line", "Ctrl+D", "Edit", () => { DuplicateLine(); return Task.CompletedTask; }),
+            Entry("Help: Check for Updates…", null, "Help", () => CheckForUpdates()),
             Entry("Help: About X-Pad", null, "Help", () => ShowAbout()),
             Entry("Edit: Upper Case", "Ctrl+U", "Edit", () => { UpperCase(); return Task.CompletedTask; }),
             Entry("Edit: Lower Case", "Ctrl+Shift+U", "Edit", () => { LowerCase(); return Task.CompletedTask; }),
@@ -1925,7 +2073,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ToggleAlwaysOnTop()
     {
         AlwaysOnTop = !AlwaysOnTop;
-        StatusText = AlwaysOnTop ? "Always on Top: On" : "Always on Top: Off";
     }
 
     [RelayCommand]
@@ -1935,7 +2082,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (owner == null) return;
 
         var current = _settingsService.Current;
-        var dialog = new PreferencesWindow(current);
+        var dialog = new PreferencesWindow(current, () => CheckForUpdatesAsync(interactive: true));
         var ok = await dialog.ShowDialog<bool>(owner);
         if (!ok || dialog.Result == null)
             return;
@@ -1946,6 +2093,7 @@ public partial class MainWindowViewModel : ViewModelBase
             s.FontFamily = dialog.Result.FontFamily;
             s.TabSize = dialog.Result.TabSize;
             s.InsertSpaces = dialog.Result.InsertSpaces;
+            s.WordWrap = dialog.Result.WordWrap;
             s.WordCompletion = dialog.Result.WordCompletion;
             s.AutoCloseBrackets = dialog.Result.AutoCloseBrackets;
             s.AutoIndent = dialog.Result.AutoIndent;
@@ -1956,21 +2104,250 @@ public partial class MainWindowViewModel : ViewModelBase
             s.BackupOnSave = dialog.Result.BackupOnSave;
             s.AutosaveIntervalSeconds = dialog.Result.AutosaveIntervalSeconds;
             s.MinimizeToTray = dialog.Result.MinimizeToTray;
+            s.Theme = dialog.Result.Theme;
             s.FormatCommand = dialog.Result.FormatCommand;
             s.FormatOnSave = dialog.Result.FormatOnSave;
             s.FormatExtensions = dialog.Result.FormatExtensions;
             s.LanguageServers = dialog.Result.LanguageServers;
+            s.CheckForUpdatesOnStartup = dialog.Result.CheckForUpdatesOnStartup;
         });
+
+        _suppressViewStatus = true;
+        WordWrap = dialog.Result.WordWrap;
+        ShowWhitespace = dialog.Result.ShowWhitespace;
+        _suppressViewStatus = false;
+        if (!string.Equals(Theme, dialog.Result.Theme, StringComparison.OrdinalIgnoreCase))
+            ApplyTheme(dialog.Result.Theme);
+        else
+            EditorThemeService.ApplyAppTheme(dialog.Result.Theme);
+
         ConfigureAutosaveTimer();
 
         foreach (var tab in Tabs)
         {
             tab.FontSize = dialog.Result.FontSize;
             tab.FontFamily = dialog.Result.FontFamily;
+            tab.WordWrap = dialog.Result.WordWrap;
         }
 
         await _lspManager.ResetAsync();
         StatusText = "Preferences saved";
+    }
+
+    [RelayCommand]
+    private Task CheckForUpdates() => CheckForUpdatesAsync(interactive: true);
+
+    private async Task CheckForUpdatesAsync(bool interactive)
+    {
+        if (!interactive)
+        {
+            if (!ShouldRunStartupUpdateCheck())
+                return;
+        }
+
+        MarkUpdateCheckAttempt();
+        StatusText = "Checking for updates…";
+
+        UpdateCheckResult result;
+        try
+        {
+            result = await _updateService.CheckLatestAsync();
+        }
+        catch (Exception ex)
+        {
+            if (interactive)
+                StatusText = $"Update check failed: {ex.Message}";
+            return;
+        }
+
+        if (!result.Success)
+        {
+            if (interactive)
+                StatusText = $"Update check failed: {result.Error}";
+            return;
+        }
+
+        if (!result.UpdateAvailable)
+        {
+            if (interactive)
+                StatusText = $"You're up to date (v{result.CurrentVersion}).";
+            return;
+        }
+
+        var owner = GetMainWindow();
+        if (owner == null)
+        {
+            StatusText = $"Update available: v{result.LatestVersion}";
+            return;
+        }
+
+        var choice = await ShowUpdateAvailableDialogAsync(owner, result);
+        if (choice == UpdatePromptChoice.Later)
+        {
+            StatusText = $"Update available: v{result.LatestVersion}";
+            return;
+        }
+
+        if (choice == UpdatePromptChoice.OpenReleasePage)
+        {
+            OpenReleasePage(result.ReleaseUrl);
+            StatusText = $"Opened release page for v{result.LatestVersion}";
+            return;
+        }
+
+        if (!result.CanApplyInPlace)
+        {
+            OpenReleasePage(result.ReleaseUrl);
+            StatusText = "This build can't update in place — opened the release page.";
+            return;
+        }
+
+        if (!await ConfirmCloseAllForExitAsync())
+        {
+            StatusText = "Update cancelled";
+            return;
+        }
+
+        try
+        {
+            StatusText = $"Downloading v{result.LatestVersion}…";
+            await _updateService.ApplyUpdateAsync(result);
+            SaveSession();
+            StatusText = "Installing update…";
+            // Bypass the window Closing prompt; the helper waits for this PID.
+            Environment.Exit(0);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Update failed: {ex.Message}";
+        }
+    }
+
+    private bool ShouldRunStartupUpdateCheck()
+    {
+        var raw = _settingsService.Current.LastUpdateCheckUtc;
+        if (string.IsNullOrWhiteSpace(raw))
+            return true;
+        if (!DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var last))
+            return true;
+        return DateTime.UtcNow - last.ToUniversalTime() >= TimeSpan.FromHours(12);
+    }
+
+    private void MarkUpdateCheckAttempt()
+    {
+        _settingsService.Update(s =>
+            s.LastUpdateCheckUtc = DateTime.UtcNow.ToString("o"));
+    }
+
+    private enum UpdatePromptChoice
+    {
+        Later,
+        UpdateNow,
+        OpenReleasePage
+    }
+
+    private static async Task<UpdatePromptChoice> ShowUpdateAvailableDialogAsync(Window owner, UpdateCheckResult result)
+    {
+        var dialog = new Window
+        {
+            Title = "Update available",
+            Width = 520,
+            Height = 360,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = true,
+            MinWidth = 420,
+            MinHeight = 280
+        };
+
+        var choice = UpdatePromptChoice.Later;
+        var notes = new TextBox
+        {
+            Text = string.IsNullOrWhiteSpace(result.ReleaseNotes)
+                ? "(No release notes)"
+                : result.ReleaseNotes,
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            MinHeight = 140
+        };
+
+        var later = new Button { Content = "Later", Width = 100 };
+        var openPage = new Button { Content = "Open release page", Width = 140 };
+        var update = new Button
+        {
+            Content = result.CanApplyInPlace ? "Update now" : "Download…",
+            Width = 110,
+            IsDefault = true
+        };
+
+        later.Click += (_, _) =>
+        {
+            choice = UpdatePromptChoice.Later;
+            dialog.Close();
+        };
+        openPage.Click += (_, _) =>
+        {
+            choice = UpdatePromptChoice.OpenReleasePage;
+            dialog.Close();
+        };
+        update.Click += (_, _) =>
+        {
+            choice = result.CanApplyInPlace
+                ? UpdatePromptChoice.UpdateNow
+                : UpdatePromptChoice.OpenReleasePage;
+            dialog.Close();
+        };
+
+        var buttons = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Children = { later, openPage, update }
+        };
+        DockPanel.SetDock(buttons, Dock.Bottom);
+
+        dialog.Content = new DockPanel
+        {
+            Margin = new Thickness(16),
+            Children =
+            {
+                buttons,
+                new StackPanel
+                {
+                    Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = $"X-Pad {result.LatestVersion} is available (you have {result.CurrentVersion}).",
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                            FontWeight = Avalonia.Media.FontWeight.SemiBold
+                        },
+                        new TextBlock { Text = "Release notes", Opacity = 0.75 },
+                        notes
+                    }
+                }
+            }
+        };
+
+        await dialog.ShowDialog(owner);
+        return choice;
+    }
+
+    private static void OpenReleasePage(string? url)
+    {
+        var target = string.IsNullOrWhiteSpace(url)
+            ? $"https://github.com/{UpdateService.Owner}/{UpdateService.Repo}/releases/latest"
+            : url;
+        try
+        {
+            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+        }
+        catch
+        {
+            // Ignore browser launch failures.
+        }
     }
 
     private static void MarkDirtyForMetaChange(DocumentViewModel tab)
@@ -1980,12 +2357,7 @@ public partial class MainWindowViewModel : ViewModelBase
             tab.Title += "*";
     }
 
-    private void SetTheme(string theme)
-    {
-        _settingsService.Update(s => s.Theme = theme);
-        EditorThemeService.ApplyAppTheme(theme);
-        StatusText = $"Theme: {theme}";
-    }
+    private void SetTheme(string theme) => ApplyTheme(theme);
 
     private void RememberRecent(string path)
     {

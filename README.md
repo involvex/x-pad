@@ -70,8 +70,16 @@ Updates `<Version>` in `x-pad.csproj` (About panel), `package.json`, and `CHANGE
 
 Stored under `%APPDATA%\XPad\`:
 
-- `settings.json` — editor prefs, LSP commands, recent files
+- `settings.json` — editor prefs, LSP commands, recent files, update prefs
 - `session.json` — last open files + caret positions
+
+Preferences (`Ctrl+,`) use a sidebar: Editor, Saving, Appearance, Formatter, Language servers, Updates.
+
+## Updates
+
+**Help → Check for Updates** (and Preferences → Updates) query [GitHub Releases](https://github.com/involvex/x-pad/releases/latest). When a newer version is available you can update in place from a published install, or open the release page from a `dotnet run` / `bin\` build.
+
+`pwsh scripts/publish-win-x64.ps1` writes `xpad.install.json` into the publish folder so the updater downloads the matching zip (`xpad-win-x64.zip` or `xpad-win-x64-selfcontained.zip`). Startup update checks are on by default (at most once every 12 hours) and never download until you confirm.
 
 ## License
 

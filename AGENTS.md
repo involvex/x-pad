@@ -62,11 +62,12 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 
 ## Architecture
 
-- **Views/** — MainWindow, DocumentEditor (AvaloniaEdit host), dialogs
-- **ViewModels/** — MainWindowViewModel, DocumentViewModel (`TextDocument` owned per tab)
+- **Views/** — MainWindow, DocumentEditor (AvaloniaEdit host), Preferences (sidebar pages), dialogs
+- **ViewModels/** — MainWindowViewModel, DocumentViewModel (`TextDocument` owned per tab),
+  PreferencesViewModel
 - **Services/** — FileService (encoding/BOM/line endings), SessionService, SettingsService,
   FormatService / FormatCommandHelper, EditorThemeService, SingleInstanceService,
-  LanguageHelper, Lsp/*
+  UpdateService (GitHub Releases), LanguageHelper, Lsp/*
 - **Editor/** — completion helpers, IndentStyle detection
 - **Models/** — AppSettings, FileSnapshot, LineEndingKind
 
@@ -89,7 +90,9 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Encoding + BOM + CRLF/LF/CR preserved on save (status bar cycle)
 - Duplicate/move line, show whitespace, print (Windows), always on top
 - Session restore (`%APPDATA%/XPad/session.json`)
-- Settings / Preferences (`%APPDATA%/XPad/settings.json`)
+- Settings / Preferences sidebar (`%APPDATA%/XPad/settings.json`) — Editor / Saving / Appearance / Formatter / LSP / Updates
+- View menu: checkable toggles, grouped Split / Zoom / Tabs / Folding / Bookmarks / Theme; Encoding under File; Edit → Transform submenu
+- GitHub Releases updater (`Help → Check for Updates`, optional startup check); publish writes `xpad.install.json` for asset matching
 - Windows single-instance + named-pipe file handoff; CLI open-or-create paths (`xpad --help`)
 - `package.json` + `scripts/xpad.js` for `bun link` → Release `xpad.exe`
 - Copy full path / Reveal in Explorer; status bar shows file path

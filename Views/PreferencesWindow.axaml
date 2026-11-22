@@ -1,108 +1,171 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:x_pad.ViewModels"
         x:Class="x_pad.Views.PreferencesWindow"
+        x:DataType="vm:PreferencesViewModel"
         Title="Preferences"
-        Width="480"
-        Height="720"
+        Width="720"
+        Height="520"
+        MinWidth="640"
+        MinHeight="420"
         WindowStartupLocation="CenterOwner"
-        CanResize="False">
+        CanResize="True">
     <DockPanel Margin="16">
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,16,0,0">
             <Button Content="Cancel" Width="90" Click="OnCancel" IsCancel="True" />
             <Button Content="Save" Width="90" Click="OnSave" IsDefault="True" />
         </StackPanel>
 
-        <ScrollViewer>
-            <StackPanel Spacing="12">
-                <TextBlock Text="Editor" FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Font size" VerticalAlignment="Center" />
-                    <NumericUpDown x:Name="FontSizeBox" Grid.Row="0" Grid.Column="1" Minimum="8" Maximum="48" Increment="1" />
+        <Grid ColumnDefinitions="180,*" ColumnSpacing="16">
+            <Border Grid.Column="0"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="4">
+                <ListBox ItemsSource="{Binding Pages}"
+                         SelectedItem="{Binding SelectedPage}"
+                         BorderThickness="0"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PreferencesPage">
+                            <TextBlock Text="{Binding Title}" Margin="8,6" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Font family" VerticalAlignment="Center" />
-                    <ComboBox x:Name="FontFamilyBox" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" />
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <Panel>
+                    <!-- Editor -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsEditorPage}">
+                        <TextBlock Text="Editor" FontWeight="SemiBold" FontSize="16" />
+                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="12">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Font size" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="0" Grid.Column="1"
+                                           Value="{Binding FontSize}"
+                                           Minimum="8" Maximum="48" Increment="1" />
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Tab size" VerticalAlignment="Center" />
-                    <NumericUpDown x:Name="TabSizeBox" Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="16" Increment="1" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Font family" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="1" Grid.Column="1"
+                                      ItemsSource="{x:Static vm:PreferencesViewModel.FontChoices}"
+                                      SelectedItem="{Binding FontFamily}"
+                                      HorizontalAlignment="Stretch" />
 
-                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Insert spaces" VerticalAlignment="Center" />
-                    <CheckBox x:Name="InsertSpacesBox" Grid.Row="3" Grid.Column="1" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Tab size" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="2" Grid.Column="1"
+                                           Value="{Binding TabSize}"
+                                           Minimum="1" Maximum="16" Increment="1" />
+                        </Grid>
+                        <StackPanel Spacing="6">
+                            <CheckBox Content="Insert spaces" IsChecked="{Binding InsertSpaces}" />
+                            <CheckBox Content="Word wrap" IsChecked="{Binding WordWrap}" />
+                            <CheckBox Content="Show whitespace" IsChecked="{Binding ShowWhitespace}" />
+                            <CheckBox Content="Indent guides" IsChecked="{Binding IndentGuides}" />
+                            <CheckBox Content="Word completion" IsChecked="{Binding WordCompletion}" />
+                            <CheckBox Content="Auto-close brackets" IsChecked="{Binding AutoCloseBrackets}" />
+                            <CheckBox Content="Auto-indent" IsChecked="{Binding AutoIndent}" />
+                        </StackPanel>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Word completion" VerticalAlignment="Center" />
-                    <CheckBox x:Name="WordCompletionBox" Grid.Row="4" Grid.Column="1" />
+                    <!-- Saving -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsSavingPage}">
+                        <TextBlock Text="Saving" FontWeight="SemiBold" FontSize="16" />
+                        <StackPanel Spacing="6">
+                            <CheckBox Content="Trim trailing whitespace on save" IsChecked="{Binding TrimTrailingWhitespaceOnSave}" />
+                            <CheckBox Content="Ensure final newline on save" IsChecked="{Binding EnsureFinalNewlineOnSave}" />
+                            <CheckBox Content="Backup on save (.bak)" IsChecked="{Binding BackupOnSave}" />
+                            <CheckBox Content="Minimize to tray" IsChecked="{Binding MinimizeToTray}" />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="160,*" ColumnSpacing="12">
+                            <TextBlock Grid.Column="0" Text="Autosave (seconds)" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Column="1"
+                                           Value="{Binding AutosaveIntervalSeconds}"
+                                           Minimum="0" Maximum="3600" Increment="30" />
+                        </Grid>
+                        <TextBlock Text="0 disables autosave."
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Auto-close brackets" VerticalAlignment="Center" />
-                    <CheckBox x:Name="AutoBracketsBox" Grid.Row="5" Grid.Column="1" />
+                    <!-- Appearance -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsAppearancePage}">
+                        <TextBlock Text="Appearance" FontWeight="SemiBold" FontSize="16" />
+                        <Grid ColumnDefinitions="140,*" ColumnSpacing="12">
+                            <TextBlock Grid.Column="0" Text="Theme" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{x:Static vm:PreferencesViewModel.ThemeChoices}"
+                                      SelectedItem="{Binding Theme}"
+                                      HorizontalAlignment="Stretch" />
+                        </Grid>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Auto-indent" VerticalAlignment="Center" />
-                    <CheckBox x:Name="AutoIndentBox" Grid.Row="6" Grid.Column="1" />
+                    <!-- Formatter -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsFormatterPage}">
+                        <TextBlock Text="Formatter" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="Example: bunx prettier --write $FILE"
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="12">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Format command" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="0" Grid.Column="1"
+                                     Text="{Binding FormatCommand}"
+                                     PlaceholderText="bunx prettier --write $FILE"
+                                     FontFamily="Cascadia Code, Consolas, monospace"
+                                     FontSize="12" />
 
-                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Indent guides" VerticalAlignment="Center" />
-                    <CheckBox x:Name="IndentGuidesBox" Grid.Row="7" Grid.Column="1" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Format on save" VerticalAlignment="Center" />
+                            <CheckBox Grid.Row="1" Grid.Column="1" IsChecked="{Binding FormatOnSave}" />
 
-                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Show whitespace" VerticalAlignment="Center" />
-                    <CheckBox x:Name="WhitespaceBox" Grid.Row="8" Grid.Column="1" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Format extensions" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="2" Grid.Column="1"
+                                     Text="{Binding FormatExtensions}"
+                                     PlaceholderText=".js,.ts,.jsx,.tsx,.json,.css,.md"
+                                     FontFamily="Cascadia Code, Consolas, monospace"
+                                     FontSize="12" />
+                        </Grid>
+                        <TextBlock Text="Leave extensions empty to format every saved file. Format Document always runs when a command is set."
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="9" Grid.Column="0" Text="Trim on save" VerticalAlignment="Center" />
-                    <CheckBox x:Name="TrimOnSaveBox" Grid.Row="9" Grid.Column="1" />
+                    <!-- Language servers -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsLspPage}">
+                        <TextBlock Text="Language servers" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="One per line: language=command --stdio"
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                        <TextBox Text="{Binding LanguageServersText}"
+                                 AcceptsReturn="True"
+                                 MinHeight="220"
+                                 TextWrapping="NoWrap"
+                                 FontFamily="Cascadia Code, Consolas, monospace"
+                                 FontSize="12" />
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="10" Grid.Column="0" Text="Final newline on save" VerticalAlignment="Center" />
-                    <CheckBox x:Name="FinalNewlineBox" Grid.Row="10" Grid.Column="1" />
-
-                    <TextBlock Grid.Row="11" Grid.Column="0" Text="Backup on save (.bak)" VerticalAlignment="Center" />
-                    <CheckBox x:Name="BackupOnSaveBox" Grid.Row="11" Grid.Column="1" />
-
-                    <TextBlock Grid.Row="12" Grid.Column="0" Text="Autosave (seconds)" VerticalAlignment="Center" />
-                    <NumericUpDown x:Name="AutosaveBox" Grid.Row="12" Grid.Column="1" Minimum="0" Maximum="3600" Increment="30" />
-
-                    <TextBlock Grid.Row="13" Grid.Column="0" Text="Minimize to tray" VerticalAlignment="Center" />
-                    <CheckBox x:Name="MinimizeToTrayBox" Grid.Row="13" Grid.Column="1" />
-                </Grid>
-
-                <Separator />
-                <TextBlock Text="Formatter" FontWeight="SemiBold" />
-                <TextBlock Text="Example: bunx prettier --write $FILE"
-                           Opacity="0.7"
-                           FontSize="11"
-                           TextWrapping="Wrap" />
-                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Format command" VerticalAlignment="Center" />
-                    <TextBox x:Name="FormatCommandBox"
-                             Grid.Row="0"
-                             Grid.Column="1"
-                             PlaceholderText="bunx prettier --write $FILE"
-                             FontFamily="Cascadia Code, Consolas, monospace"
-                             FontSize="12" />
-
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Format on save" VerticalAlignment="Center" />
-                    <CheckBox x:Name="FormatOnSaveBox" Grid.Row="1" Grid.Column="1" />
-
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Format extensions" VerticalAlignment="Center" />
-                    <TextBox x:Name="FormatExtensionsBox"
-                             Grid.Row="2"
-                             Grid.Column="1"
-                             PlaceholderText=".js,.ts,.jsx,.tsx,.json,.css,.md"
-                             FontFamily="Cascadia Code, Consolas, monospace"
-                             FontSize="12" />
-                </Grid>
-                <TextBlock Text="Leave extensions empty to format every saved file. Format Document always runs when a command is set."
-                           Opacity="0.7"
-                           FontSize="11"
-                           TextWrapping="Wrap" />
-
-                <Separator />
-                <TextBlock Text="Language servers (optional)" FontWeight="SemiBold" />
-                <TextBlock Text="One per line: language=command --stdio"
-                           Opacity="0.7"
-                           FontSize="11"
-                           TextWrapping="Wrap" />
-                <TextBox x:Name="LspBox"
-                         AcceptsReturn="True"
-                         Height="140"
-                         TextWrapping="NoWrap"
-                         FontFamily="Cascadia Code, Consolas, monospace"
-                         FontSize="12" />
-            </StackPanel>
-        </ScrollViewer>
+                    <!-- Updates -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsUpdatesPage}">
+                        <TextBlock Text="Updates" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="{Binding CurrentVersion, StringFormat='Current version: {0}'}" />
+                        <CheckBox Content="Check for updates on startup" IsChecked="{Binding CheckForUpdatesOnStartup}" />
+                        <Button Content="Check for updates now"
+                                HorizontalAlignment="Left"
+                                Command="{Binding CheckForUpdatesCommand}" />
+                        <TextBlock Text="Updates download the matching zip from GitHub Releases and replace this install after you confirm."
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Panel>
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </Window>
