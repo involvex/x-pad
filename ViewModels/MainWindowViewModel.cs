@@ -30,8 +30,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly FormatService _formatService = new();
     private readonly RecoveryService _recoveryService = new();
     private readonly OpenFileWatcher _fileWatcher = new();
+    private readonly WorkspaceService _workspace = new();
     private readonly SettingsService _settingsService;
     private readonly LspManager _lspManager;
+    private readonly FileTreeViewModel _fileTree;
     private readonly DispatcherTimer _autosaveTimer;
     private readonly DispatcherTimer _recoveryTimer;
     private readonly List<ClosedTabSnapshot> _closedTabs = new();
@@ -79,7 +81,14 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool isTerminalVisible;
 
     [ObservableProperty]
+    private bool isExplorerVisible;
+
+    [ObservableProperty]
     private string theme = "Dark";
+
+    public FileTreeViewModel FileTree => _fileTree;
+    public WorkspaceService Workspace => _workspace;
+    public string? WorkspaceRoot => _workspace.Root;
 
     private readonly UpdateService _updateService = new();
     private bool _startupUpdateScheduled;
@@ -128,8 +137,14 @@ public partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel(string[]? args = null, SettingsService? settings = null)
     {
         _settingsService = settings ?? new SettingsService();
-        _lspManager = new LspManager(_settingsService);
+        _lspManager = new LspManager(_settingsService, () => _workspace.Root);
         _lspManager.DiagnosticsReceived += OnLspDiagnostics;
+        _fileTree = new FileTreeViewModel(
+            _workspace,
+            () => _settingsService.Current.WorkspaceExcludeNames is { Count: > 0 } names
+                ? names
+                : WorkspaceService.DefaultExcludeNames.ToList());
+        _workspace.Changed += OnWorkspaceChanged;
         _suppressViewStatus = true;
         WordWrap = _settingsService.Current.WordWrap;
         ShowWhitespace = _settingsService.Current.ShowWhitespace;
@@ -141,6 +156,12 @@ public partial class MainWindowViewModel : ViewModelBase
         EditorThemeService.ApplyAppTheme(_settingsService.Current.Theme);
 
         var openedFromArgs = false;
+        foreach (var folder in CliArgs.ResolveWorkspacePaths(args))
+        {
+            if (OpenWorkspace(folder))
+                openedFromArgs = true;
+        }
+
         foreach (var path in CliArgs.ResolveFilePaths(args))
         {
             OpenFileSync(path);
@@ -165,6 +186,26 @@ public partial class MainWindowViewModel : ViewModelBase
         _fileWatcher.FileChanged += OnWatchedFileChanged;
         SyncFileWatchers();
         ScheduleRecoveryPrompt();
+    }
+
+    private void OnWorkspaceChanged(object? sender, EventArgs e)
+    {
+        IsExplorerVisible = _workspace.Root != null;
+        OnPropertyChanged(nameof(WorkspaceRoot));
+        _ = _lspManager.ResetAsync();
+        StatusText = _workspace.Root == null
+            ? "Folder closed"
+            : $"Folder: {Path.GetFileName(_workspace.Root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
+    }
+
+    public bool OpenWorkspace(string path)
+    {
+        if (!_workspace.TryOpen(path))
+            return false;
+
+        _settingsService.Update(s => s.LastWorkspacePath = _workspace.Root);
+        IsExplorerVisible = true;
+        return true;
     }
 
     private void ConfigureAutosaveTimer()
@@ -440,6 +481,88 @@ public partial class MainWindowViewModel : ViewModelBase
 
         foreach (var file in files)
             await OpenFileFromPath(file.Path.LocalPath);
+    }
+
+    [RelayCommand]
+    private async Task OpenFolder()
+    {
+        var topLevel = GetMainWindow();
+        if (topLevel == null) return;
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Open Folder",
+            AllowMultiple = false
+        });
+
+        var folder = folders.FirstOrDefault();
+        if (folder == null)
+            return;
+
+        if (OpenWorkspace(folder.Path.LocalPath))
+            StatusText = $"Opened folder: {_workspace.Root}";
+        else
+            StatusText = "Open folder failed";
+    }
+
+    [RelayCommand]
+    private void CloseFolder()
+    {
+        _workspace.Close();
+        _settingsService.Update(s => s.LastWorkspacePath = null);
+    }
+
+    [RelayCommand]
+    private void ToggleExplorer()
+    {
+        if (_workspace.Root == null)
+        {
+            StatusText = "Open a folder first";
+            return;
+        }
+
+        IsExplorerVisible = !IsExplorerVisible;
+    }
+
+    [RelayCommand]
+    private async Task FindInFolder()
+    {
+        if (string.IsNullOrWhiteSpace(_workspace.Root))
+        {
+            StatusText = "Open a folder to search";
+            return;
+        }
+
+        var owner = GetMainWindow();
+        if (owner == null)
+            return;
+
+        var excludes = _settingsService.Current.WorkspaceExcludeNames is { Count: > 0 } names
+            ? names
+            : WorkspaceService.DefaultExcludeNames.ToList();
+        var dialog = new FindInFolderWindow(_workspace.Root, excludes, Tabs);
+        var hit = await dialog.ShowDialog<FolderFindHit?>(owner);
+
+        foreach (var (path, text) in dialog.UpdatedOpenTabs)
+        {
+            var tab = Tabs.FirstOrDefault(t =>
+                t.FilePath != null &&
+                string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase));
+            if (tab == null)
+                continue;
+            tab.Document.Replace(0, tab.Document.TextLength, text);
+        }
+
+        if (dialog.ReplaceCount > 0)
+            StatusText = $"Replaced {dialog.ReplaceCount} in folder";
+
+        if (hit == null)
+            return;
+
+        await OpenFileFromPath(hit.Path, hit.Match.Line, hit.Match.Column);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        GetSelectedEditor()?.GoToMatch(hit.Match.Line, hit.Match.Column, hit.Match.Length);
+        StatusText = $"Found in {hit.Location}";
     }
 
     public async Task OpenFileFromPath(
@@ -2046,6 +2169,10 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Entry("File: New Tab", "Ctrl+N", "File", () => { NewTab(); return Task.CompletedTask; }),
             Entry("File: Open…", "Ctrl+O", "File", () => OpenFile()),
+            Entry("File: Open Folder…", "Ctrl+Shift+O", "File", () => OpenFolder()),
+            Entry("File: Close Folder", null, "File", () => { CloseFolder(); return Task.CompletedTask; }),
+            Entry("View: Toggle Explorer", null, "View", () => { ToggleExplorer(); return Task.CompletedTask; }),
+            Entry("Edit: Find in Folder…", "Ctrl+Shift+H", "Edit", () => FindInFolder()),
             Entry("File: Save", "Ctrl+S", "File", () => SaveFile()),
             Entry("File: Save As…", "Ctrl+Shift+S", "File", () => SaveFileAs()),
             Entry("File: Save All", "Ctrl+Alt+S", "File", () => SaveAll()),

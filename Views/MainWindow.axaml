@@ -27,6 +27,7 @@
         <KeyBinding Gesture="Ctrl+Shift+PageDown" Command="{Binding MoveTabRightCommand}" />
         <KeyBinding Gesture="Ctrl+N" Command="{Binding NewTabCommand}" />
         <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+O" Command="{Binding OpenFolderCommand}" />
         <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveFileCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveFileAsCommand}" />
         <KeyBinding Gesture="Ctrl+W" Command="{Binding CloseTabCommand}" />
@@ -37,6 +38,7 @@
         <KeyBinding Gesture="F3" Command="{Binding FindNextCommand}" />
         <KeyBinding Gesture="Shift+F3" Command="{Binding FindPreviousCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding FindInOpenTabsCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+H" Command="{Binding FindInFolderCommand}" />
         <KeyBinding Gesture="Ctrl+G" Command="{Binding GoToLineCommand}" />
         <KeyBinding Gesture="F5" Command="{Binding InsertDateTimeCommand}" />
         <KeyBinding Gesture="Alt+Z" Command="{Binding ToggleWordWrapCommand}" />
@@ -79,6 +81,8 @@
             <MenuItem Header="_File">
                 <MenuItem Header="_New" Command="{Binding NewTabCommand}" InputGesture="Ctrl+N" />
                 <MenuItem Header="_Open..." Command="{Binding OpenFileCommand}" InputGesture="Ctrl+O" />
+                <MenuItem Header="Open Fol_der..." Command="{Binding OpenFolderCommand}" InputGesture="Ctrl+Shift+O" />
+                <MenuItem Header="Close Folde_r" Command="{Binding CloseFolderCommand}" />
                 <MenuItem Header="Open _Recent" ItemsSource="{Binding RecentFiles}">
                     <MenuItem.Styles>
                         <Style Selector="MenuItem > MenuItem">
@@ -171,9 +175,14 @@
                 <MenuItem Header="Find Pre_vious" Command="{Binding FindPreviousCommand}" InputGesture="Shift+F3" />
                 <MenuItem Header="_Replace..." Command="{Binding ReplaceCommand}" InputGesture="Ctrl+H" />
                 <MenuItem Header="Find in Open _Tabs..." Command="{Binding FindInOpenTabsCommand}" InputGesture="Ctrl+Shift+F" />
+                <MenuItem Header="Find in Fol_der..." Command="{Binding FindInFolderCommand}" InputGesture="Ctrl+Shift+H" />
                 <MenuItem Header="_Go to Line..." Command="{Binding GoToLineCommand}" InputGesture="Ctrl+G" />
             </MenuItem>
             <MenuItem Header="_View">
+                <MenuItem Header="_Explorer"
+                         ToggleType="CheckBox"
+                         IsChecked="{Binding IsExplorerVisible, Mode=OneWay}"
+                         Command="{Binding ToggleExplorerCommand}" />
                 <MenuItem Header="_Word Wrap"
                          ToggleType="CheckBox"
                          IsChecked="{Binding SelectedTab.WordWrap, Mode=OneWay}"
@@ -387,7 +396,21 @@
         </Border>
 
         <Grid RowDefinitions="*,Auto,Auto">
-            <TabControl Grid.Row="0"
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*">
+                <Border Grid.Column="0"
+                        Width="240"
+                        IsVisible="{Binding IsExplorerVisible}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="0,0,1,0"
+                        Background="{DynamicResource XPadChromeAltBrush}">
+                    <views:FileTreePanel x:Name="FileTreeHost"
+                                         DataContext="{Binding FileTree}" />
+                </Border>
+                <GridSplitter Grid.Column="1"
+                              Width="4"
+                              ResizeDirection="Columns"
+                              IsVisible="{Binding IsExplorerVisible}" />
+            <TabControl Grid.Column="2"
                         x:Name="DocumentTabs"
                         ItemsSource="{Binding Tabs}"
                         SelectedItem="{Binding SelectedTab}"
@@ -458,6 +481,7 @@
                     </DataTemplate>
                 </TabControl.ContentTemplate>
             </TabControl>
+            </Grid>
 
             <GridSplitter Grid.Row="1"
                           Height="4"

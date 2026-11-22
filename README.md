@@ -14,7 +14,8 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 - Read-only buffers, crash recovery for dirty/untitled tabs, live external-change watching
 - Large-file guard (8 MB+): open as plain text without folding / word completion / LSP
 - Per-tab word wrap; per-buffer Tabs / Spaces (detected from the file; status-bar toggle)
-- CLI open-or-create, single-instance file handoff, Send To / Open With helpers
+- Open Folder / file tree explorer; find/replace in folder (`Ctrl+Shift+H`)
+- CLI open-or-create (files) or open folder; single-instance file handoff, Send To / Open With helpers
 - Backup on save (`.bak`), optional autosave
 - Optional external formatter (`$FILE` command, format on save)
 

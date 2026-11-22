@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:x_pad.Views"
+        x:Class="x_pad.Views.FindInFolderWindow"
+        Title="Find in Folder"
+        Width="720"
+        Height="540"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        MinWidth="520"
+        MinHeight="360">
+    <DockPanel Margin="12">
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <TextBlock Grid.Column="0" Text="Find" VerticalAlignment="Center" Width="56" />
+                <TextBox x:Name="QueryBox" Grid.Column="1" PlaceholderText="Search folder…" FontSize="14" />
+                <Button x:Name="SearchButton" Grid.Column="2" Content="Search" MinWidth="80" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                <TextBlock Grid.Column="0" Text="Replace" VerticalAlignment="Center" Width="56" />
+                <TextBox x:Name="ReplaceBox" Grid.Column="1" PlaceholderText="Replace with…" FontSize="14" />
+                <Button x:Name="ReplaceButton" Grid.Column="2" Content="Replace" MinWidth="80" />
+                <Button x:Name="ReplaceAllButton" Grid.Column="3" Content="Replace All" MinWidth="96" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <CheckBox x:Name="MatchCaseBox" Content="Match case" />
+                <CheckBox x:Name="WholeWordBox" Content="Whole word" />
+                <CheckBox x:Name="RegexBox" Content="Regex" />
+            </StackPanel>
+            <TextBlock x:Name="FolderBox" FontSize="11" Opacity="0.65" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <TextBlock x:Name="SummaryBox"
+                   DockPanel.Dock="Bottom"
+                   Margin="0,8,0,0"
+                   FontSize="11"
+                   Opacity="0.65"
+                   Text="Search a workspace folder" />
+        <ListBox x:Name="ResultsList" FontSize="12" DoubleTapped="OnResultsDoubleTapped">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="views:FolderFindHit">
+                    <Grid ColumnDefinitions="220,*" Margin="2,1">
+                        <TextBlock Grid.Column="0" Text="{Binding Location}" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="1" Text="{Binding Preview}" TextTrimming="CharacterEllipsis" Margin="8,0,0,0" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

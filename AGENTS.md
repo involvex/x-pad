@@ -62,13 +62,15 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 
 ## Architecture
 
-- **Views/** — MainWindow, DocumentEditor (AvaloniaEdit host), Preferences (sidebar pages), dialogs
+- **Views/** — MainWindow, DocumentEditor (AvaloniaEdit host), FileTreePanel, Preferences
+  (sidebar pages), Find in Open Tabs / Find in Folder dialogs
 - **ViewModels/** — MainWindowViewModel, DocumentViewModel (`TextDocument` owned per tab),
-  PreferencesViewModel
+  PreferencesViewModel, FileTreeViewModel
 - **Services/** — FileService (encoding/BOM/line endings + re-decode), SessionService,
-  SettingsService, RecoveryService, OpenFileWatcher, TabSearch, LargeFilePolicy,
-  FormatService / FormatCommandHelper, EditorThemeService, SingleInstanceService,
-  UpdateService (GitHub Releases), LanguageHelper, Lsp/*
+  SettingsService, RecoveryService, OpenFileWatcher, TabSearch, DiskSearch / DiskReplace,
+  WorkspaceService, LargeFilePolicy, FormatService / FormatCommandHelper,
+  EditorThemeService, SingleInstanceService, UpdateService (GitHub Releases),
+  LanguageHelper, Lsp/*
 - **Editor/** — completion helpers, IndentStyle detection
 - **Models/** — AppSettings, FileSnapshot, LineEndingKind
 
@@ -88,6 +90,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Case/sort/join/trim + remove empty/duplicate lines; insert spaces vs tabs pref; trim + final newline on save; optional `.bak` backup on save
 - External formatter (`FormatCommand` with `$FILE`, format on save / `Shift+Alt+F` Format Document, optional extension filter)
 - Find / replace in open tabs (`Ctrl+Shift+F`): match case, whole word, regex, replace / replace all (500-hit cap)
+- Open Folder (`Ctrl+Shift+O`) + explorer sidebar; find/replace in folder (`Ctrl+Shift+H`); excludes `.git` / `node_modules` / `bin` / `obj` / `.vs`; LSP `rootUri` follows the workspace folder
 - Optional autosave (prefs: interval seconds; 0 = off)
 - Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles)
 - Encoding + BOM + CRLF/LF/CR preserved on save; re-decode from kept source bytes (UTF-8 / BOM / UTF-16 LE+BE / Latin-1)

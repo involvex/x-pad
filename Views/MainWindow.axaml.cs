@@ -29,6 +29,13 @@ public partial class MainWindow : Window
                 if (DataContext is MainWindowViewModel vm)
                     vm.IsTerminalVisible = false;
             };
+
+        if (this.FindControl<FileTreePanel>("FileTreeHost") is { } tree)
+            tree.FileOpenRequested += async (_, path) =>
+            {
+                if (DataContext is MainWindowViewModel vm)
+                    await vm.OpenFileFromPath(path);
+            };
     }
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -131,7 +138,9 @@ public partial class MainWindow : Window
         foreach (var item in files)
         {
             var path = item.Path.LocalPath;
-            if (System.IO.File.Exists(path))
+            if (System.IO.Directory.Exists(path))
+                vm.OpenWorkspace(path);
+            else if (System.IO.File.Exists(path))
                 await vm.OpenFileFromPath(path);
         }
     }

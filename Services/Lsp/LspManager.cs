@@ -9,13 +9,15 @@ namespace x_pad.Services.Lsp;
 public sealed class LspManager : IAsyncDisposable
 {
     private readonly SettingsService _settings;
+    private readonly Func<string?>? _workspaceRootProvider;
     private readonly Dictionary<string, LspClient> _clients = new(StringComparer.OrdinalIgnoreCase);
 
     public event Action<string, IReadOnlyList<LspDiagnostic>>? DiagnosticsReceived;
 
-    public LspManager(SettingsService settings)
+    public LspManager(SettingsService settings, Func<string?>? workspaceRootProvider = null)
     {
         _settings = settings;
+        _workspaceRootProvider = workspaceRootProvider;
     }
 
     public async Task<LspClient?> GetClientAsync(string languageId, string? filePath)
@@ -30,9 +32,12 @@ public sealed class LspManager : IAsyncDisposable
         if (_clients.TryGetValue(languageId, out var existing))
             return existing;
 
-        var workspace = string.IsNullOrWhiteSpace(filePath)
-            ? Environment.CurrentDirectory
-            : Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? Environment.CurrentDirectory;
+        var workspaceRoot = _workspaceRootProvider?.Invoke();
+        var workspace = !string.IsNullOrWhiteSpace(workspaceRoot) && Directory.Exists(workspaceRoot)
+            ? workspaceRoot
+            : string.IsNullOrWhiteSpace(filePath)
+                ? Environment.CurrentDirectory
+                : Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? Environment.CurrentDirectory;
 
         var client = await LspClient.TryStartAsync(command, workspace);
         if (client == null)
