@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lsp="using:x_pad.Services.Lsp"
+        x:Class="x_pad.Views.DocumentOutlineWindow"
+        Title="Document Outline"
+        Width="420"
+        Height="480"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        MinWidth="320"
+        MinHeight="280">
+    <DockPanel Margin="12">
+        <TextBlock x:Name="SummaryBox"
+                   DockPanel.Dock="Bottom"
+                   Margin="0,8,0,0"
+                   FontSize="11"
+                   Opacity="0.65"
+                   Text="Enter jump · Esc close" />
+        <TreeView x:Name="SymbolTree"
+                  FontSize="12"
+                  DoubleTapped="OnTreeDoubleTapped"
+                  KeyDown="OnTreeKeyDown">
+            <TreeView.ItemTemplate>
+                <TreeDataTemplate ItemsSource="{Binding Children}" DataType="lsp:LspDocumentSymbol">
+                    <TextBlock>
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0}  ·  L{1}">
+                                <Binding Path="Name" />
+                                <Binding Path="Line" />
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+    </DockPanel>
+</Window>

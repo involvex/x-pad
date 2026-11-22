@@ -1571,6 +1571,95 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task GoToDefinition()
+    {
+        if (SelectedTab?.FilePath == null)
+        {
+            StatusText = "Save the file to use Go to Definition";
+            return;
+        }
+
+        if (SelectedTab.IsLargeFile)
+        {
+            StatusText = "Go to Definition disabled for large files";
+            return;
+        }
+
+        var probe = LanguageHelper.GetProbePath(SelectedTab.FilePath, SelectedTab.LanguageOverrideExtension);
+        var languageId = LanguageHelper.GetLspLanguageId(probe);
+        var client = await _lspManager.GetClientAsync(languageId, SelectedTab.FilePath);
+        if (client == null)
+        {
+            StatusText = "No language server for this file";
+            return;
+        }
+
+        var uri = new Uri(Path.GetFullPath(SelectedTab.FilePath)).AbsoluteUri;
+        var locations = await client.DefinitionAsync(
+            uri,
+            Math.Max(0, SelectedTab.LineNumber - 1),
+            Math.Max(0, SelectedTab.ColumnNumber - 1));
+
+        if (locations.Count == 0)
+        {
+            StatusText = "No definition found";
+            return;
+        }
+
+        var target = locations[0];
+        var path = LspNavigationParser.TryUriToLocalPath(target.Uri);
+        if (path == null || !File.Exists(path))
+        {
+            StatusText = "Definition target not on disk";
+            return;
+        }
+
+        await OpenFileFromPath(path, target.Line + 1, target.Character + 1);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        GetSelectedEditor()?.GoToMatch(target.Line + 1, target.Character + 1, Math.Max(1, target.EndCharacter - target.Character));
+        StatusText = $"Definition: {Path.GetFileName(path)}:{target.Line + 1}";
+    }
+
+    [RelayCommand]
+    private async Task ShowDocumentOutline()
+    {
+        if (SelectedTab?.FilePath == null)
+        {
+            StatusText = "Save the file to use Outline";
+            return;
+        }
+
+        if (SelectedTab.IsLargeFile)
+        {
+            StatusText = "Outline disabled for large files";
+            return;
+        }
+
+        var owner = GetMainWindow();
+        if (owner == null)
+            return;
+
+        var probe = LanguageHelper.GetProbePath(SelectedTab.FilePath, SelectedTab.LanguageOverrideExtension);
+        var languageId = LanguageHelper.GetLspLanguageId(probe);
+        var client = await _lspManager.GetClientAsync(languageId, SelectedTab.FilePath);
+        if (client == null)
+        {
+            StatusText = "No language server for this file";
+            return;
+        }
+
+        var uri = new Uri(Path.GetFullPath(SelectedTab.FilePath)).AbsoluteUri;
+        var symbols = await client.DocumentSymbolsAsync(uri);
+        var dialog = new DocumentOutlineWindow(symbols);
+        var picked = await dialog.ShowDialog<LspDocumentSymbol?>(owner);
+        if (picked == null)
+            return;
+
+        GetSelectedEditor()?.GoToMatch(picked.Line, picked.Character, 1);
+        StatusText = $"Outline: {picked.Name}";
+    }
+
+    [RelayCommand]
     private void ToggleDarkMode() => SetTheme("Dark");
 
     [RelayCommand]
@@ -2194,6 +2283,8 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Invert Selection", null, "Edit", () => { InvertSelection(); return Task.CompletedTask; }),
             Entry("Edit: Search Web", null, "Edit", () => { SearchWeb(); return Task.CompletedTask; }),
             Entry("Edit: Go to Line…", "Ctrl+G", "Edit", () => GoToLine()),
+            Entry("Edit: Go to Definition", "F12", "Edit", () => GoToDefinition()),
+            Entry("View: Document Outline…", "Ctrl+Shift+.", "View", () => ShowDocumentOutline()),
             Entry("Edit: Toggle Line Comment", "Ctrl+/", "Edit", () => { ToggleLineComment(); return Task.CompletedTask; }),
             Entry("Edit: Insert Date/Time", "F5", "Edit", () => { InsertDateTime(); return Task.CompletedTask; }),
             Entry("Edit: Duplicate Line", "Ctrl+D", "Edit", () => { DuplicateLine(); return Task.CompletedTask; }),

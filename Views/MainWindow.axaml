@@ -40,6 +40,8 @@
         <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding FindInOpenTabsCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+H" Command="{Binding FindInFolderCommand}" />
         <KeyBinding Gesture="Ctrl+G" Command="{Binding GoToLineCommand}" />
+        <KeyBinding Gesture="F12" Command="{Binding GoToDefinitionCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+OemPeriod" Command="{Binding ShowDocumentOutlineCommand}" />
         <KeyBinding Gesture="F5" Command="{Binding InsertDateTimeCommand}" />
         <KeyBinding Gesture="Alt+Z" Command="{Binding ToggleWordWrapCommand}" />
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenPreferencesCommand}" />
@@ -177,6 +179,8 @@
                 <MenuItem Header="Find in Open _Tabs..." Command="{Binding FindInOpenTabsCommand}" InputGesture="Ctrl+Shift+F" />
                 <MenuItem Header="Find in Fol_der..." Command="{Binding FindInFolderCommand}" InputGesture="Ctrl+Shift+H" />
                 <MenuItem Header="_Go to Line..." Command="{Binding GoToLineCommand}" InputGesture="Ctrl+G" />
+                <MenuItem Header="Go to _Definition" Command="{Binding GoToDefinitionCommand}" InputGesture="F12" />
+                <MenuItem Header="Document Out_line..." Command="{Binding ShowDocumentOutlineCommand}" InputGesture="Ctrl+Shift+." />
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="_Explorer"

@@ -9,7 +9,7 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 - Tabs, dirty close prompts, session restore (files + caret)
 - MIT-friendly TextMate syntax highlighting + dark / light / Monokai themes
 - Find / replace, find/replace in open tabs (regex, whole word), bookmarks, bracket match, multi-occurrence edit
-- Completions + optional stdio LSP
+- Completions + optional stdio LSP (hover, go to definition, document outline)
 - Encoding / BOM / line endings preserved on save; re-decode from disk bytes (incl. UTF-16 BE)
 - Read-only buffers, crash recovery for dirty/untitled tabs, live external-change watching
 - Large-file guard (8 MB+): open as plain text without folding / word completion / LSP

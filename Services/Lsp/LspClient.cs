@@ -94,13 +94,21 @@ public sealed class LspClient : IAsyncDisposable
                         ["completionItem"] = new JsonObject { ["snippetSupport"] = false }
                     },
                     ["hover"] = new JsonObject(),
-                    ["publishDiagnostics"] = new JsonObject()
+                    ["publishDiagnostics"] = new JsonObject(),
+                    ["definition"] = new JsonObject
+                    {
+                        ["linkSupport"] = true
+                    },
+                    ["documentSymbol"] = new JsonObject
+                    {
+                        ["hierarchicalDocumentSymbolSupport"] = true
+                    }
                 }
             },
             ["clientInfo"] = new JsonObject
             {
                 ["name"] = "x-pad",
-                ["version"] = "0.1.0"
+                ["version"] = "0.4.0"
             }
         };
 
@@ -176,6 +184,33 @@ public sealed class LspClient : IAsyncDisposable
         });
 
         return ParseHover(result);
+    }
+
+    public async Task<IReadOnlyList<LspLocation>> DefinitionAsync(string uri, int line, int character)
+    {
+        if (!_initialized)
+            return [];
+
+        var result = await RequestAsync("textDocument/definition", new JsonObject
+        {
+            ["textDocument"] = new JsonObject { ["uri"] = uri },
+            ["position"] = new JsonObject { ["line"] = line, ["character"] = character }
+        });
+
+        return LspNavigationParser.ParseLocations(result);
+    }
+
+    public async Task<IReadOnlyList<LspDocumentSymbol>> DocumentSymbolsAsync(string uri)
+    {
+        if (!_initialized)
+            return [];
+
+        var result = await RequestAsync("textDocument/documentSymbol", new JsonObject
+        {
+            ["textDocument"] = new JsonObject { ["uri"] = uri }
+        });
+
+        return LspNavigationParser.ParseDocumentSymbols(result);
     }
 
     private static IReadOnlyList<LspCompletionItem> ParseCompletion(JsonNode? node)
