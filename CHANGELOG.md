@@ -3,6 +3,11 @@
 
 
 
+
+## 0.5.0 - 2026-11-22
+
+- feat(lsp): Find References with Shift+F12
+- feat(lsp): go to definition and document outline
 ## 0.4.0 - 2026-11-22
 
 - test: add workspace/disk-search smoke script
