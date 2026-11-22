@@ -4,6 +4,10 @@
 
 
 
+
+## 0.5.1 - 2026-11-22
+
+- feat(lsp): code actions with Ctrl+. text edits
 ## 0.5.0 - 2026-11-22
 
 - feat(lsp): Find References with Shift+F12
