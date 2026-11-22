@@ -13,6 +13,8 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 - Encoding / BOM / line endings preserved on save
 - CLI open-or-create, single-instance file handoff, Send To / Open With helpers
 - Backup on save (`.bak`), optional autosave
+- Per-buffer Tabs / Spaces (detected from the file; status-bar toggle)
+- Optional external formatter (`$FILE` command, format on save)
 
 ## Run
 
@@ -31,6 +33,18 @@ dotnet run -- path\to\file.txt
 dotnet run -- new-notes.txt    # empty buffer; Save creates the file
 xpad --help
 ```
+
+### Global `xpad` via Bun link
+
+Point a global `xpad` command at the Release build of this checkout:
+
+```bash
+dotnet build -c Release
+bun link
+xpad path\to\file.txt
+```
+
+`scripts/xpad.js` launches `bin/Release/net10.0/xpad.exe`. Rebuild with `dotnet build -c Release` after code changes. A second launch still hands files to the running instance.
 
 ## Windows publish / Notepad-style integration
 

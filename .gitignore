@@ -40,6 +40,9 @@ ScaffoldingReadMe.txt
 # dotenv environment variables file
 .env
 
+# Node / Bun (bun link launcher)
+node_modules/
+
 # Others
 ~$*
 *~

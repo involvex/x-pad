@@ -55,6 +55,7 @@
         <KeyBinding Gesture="Ctrl+Space" Command="{Binding TriggerCompletionsCommand}" />
         <KeyBinding Gesture="Ctrl+OemQuestion" Command="{Binding ToggleLineCommentCommand}" />
         <KeyBinding Gesture="Ctrl+Divide" Command="{Binding ToggleLineCommentCommand}" />
+        <KeyBinding Gesture="Shift+Alt+F" Command="{Binding FormatDocumentCommand}" />
         <KeyBinding Gesture="Ctrl+U" Command="{Binding UpperCaseCommand}" />
         <KeyBinding Gesture="Ctrl+Shift+U" Command="{Binding LowerCaseCommand}" />
         <KeyBinding Gesture="Ctrl+F2" Command="{Binding ToggleBookmarkCommand}" />
@@ -147,6 +148,7 @@
                 <MenuItem Header="Remove _Empty Lines" Command="{Binding RemoveEmptyLinesCommand}" />
                 <MenuItem Header="Remove Duplicate Lines" Command="{Binding RemoveDuplicateLinesCommand}" />
                 <MenuItem Header="Trim Trailing _Whitespace" Command="{Binding TrimTrailingWhitespaceCommand}" />
+                <MenuItem Header="_Format Document" Command="{Binding FormatDocumentCommand}" InputGesture="Shift+Alt+F" />
                 <MenuItem Header="Insert Date/_Time" Command="{Binding InsertDateTimeCommand}" InputGesture="F5" />
                 <Separator />
                 <MenuItem Header="_Find..." Command="{Binding FindCommand}" InputGesture="Ctrl+F" />
@@ -211,7 +213,7 @@
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="8,4">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0"
                            Text="{Binding StatusText}"
                            VerticalAlignment="Center"
@@ -260,7 +262,8 @@
                     <TextBlock Text="{Binding SelectedTab.Language, FallbackValue='Plain Text'}"
                                FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                </Button>                <Button Grid.Column="3"
+                </Button>
+                <Button Grid.Column="3"
                         Classes="quiet"
                         Margin="4,0"
                         Padding="6,2"
@@ -284,7 +287,19 @@
                                FontSize="11"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Button>
-                <TextBlock Grid.Column="5"
+                <Button Grid.Column="5"
+                        Classes="quiet"
+                        Margin="4,0"
+                        Padding="6,2"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Command="{Binding CycleIndentStyleCommand}"
+                        ToolTip.Tip="Toggle Tab vs Spaces for this buffer">
+                    <TextBlock Text="{Binding SelectedTab.IndentStyle, FallbackValue='Spaces'}"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Button>
+                <TextBlock Grid.Column="6"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontSize="11"
@@ -296,13 +311,13 @@
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
-                <TextBlock Grid.Column="6"
+                <TextBlock Grid.Column="7"
                            Text="{Binding SelectedTab.LineCount, StringFormat='Lines: {0}'}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontSize="11"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock Grid.Column="7"
+                <TextBlock Grid.Column="8"
                            Text="{Binding SelectedTab.FontSize, StringFormat='{}{0:0}px'}"
                            Margin="12,0"
                            VerticalAlignment="Center"

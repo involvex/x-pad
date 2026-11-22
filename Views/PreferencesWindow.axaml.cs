@@ -45,6 +45,9 @@ public partial class PreferencesWindow : Window
         var backupOnSave = this.FindControl<CheckBox>("BackupOnSaveBox");
         var autosave = this.FindControl<NumericUpDown>("AutosaveBox");
         var minimizeToTray = this.FindControl<CheckBox>("MinimizeToTrayBox");
+        var formatCommand = this.FindControl<TextBox>("FormatCommandBox");
+        var formatOnSave = this.FindControl<CheckBox>("FormatOnSaveBox");
+        var formatExtensions = this.FindControl<TextBox>("FormatExtensionsBox");
         var lsp = this.FindControl<TextBox>("LspBox");
 
         if (font != null) font.Value = (decimal)settings.FontSize;
@@ -67,6 +70,9 @@ public partial class PreferencesWindow : Window
         if (backupOnSave != null) backupOnSave.IsChecked = settings.BackupOnSave;
         if (autosave != null) autosave.Value = settings.AutosaveIntervalSeconds;
         if (minimizeToTray != null) minimizeToTray.IsChecked = settings.MinimizeToTray;
+        if (formatCommand != null) formatCommand.Text = settings.FormatCommand;
+        if (formatOnSave != null) formatOnSave.IsChecked = settings.FormatOnSave;
+        if (formatExtensions != null) formatExtensions.Text = settings.FormatExtensions;
         if (lsp != null) lsp.Text = FormatServers(settings.LanguageServers);
     }
 
@@ -86,6 +92,9 @@ public partial class PreferencesWindow : Window
         var backupOnSave = this.FindControl<CheckBox>("BackupOnSaveBox");
         var autosave = this.FindControl<NumericUpDown>("AutosaveBox");
         var minimizeToTray = this.FindControl<CheckBox>("MinimizeToTrayBox");
+        var formatCommand = this.FindControl<TextBox>("FormatCommandBox");
+        var formatOnSave = this.FindControl<CheckBox>("FormatOnSaveBox");
+        var formatExtensions = this.FindControl<TextBox>("FormatExtensionsBox");
         var lsp = this.FindControl<TextBox>("LspBox");
 
         Result = new AppSettings
@@ -105,6 +114,9 @@ public partial class PreferencesWindow : Window
             BackupOnSave = backupOnSave?.IsChecked == true,
             AutosaveIntervalSeconds = (int)(autosave?.Value ?? 0),
             MinimizeToTray = minimizeToTray?.IsChecked != false,
+            FormatCommand = formatCommand?.Text?.Trim() ?? "",
+            FormatOnSave = formatOnSave?.IsChecked == true,
+            FormatExtensions = formatExtensions?.Text?.Trim() ?? "",
             WordWrap = _original.WordWrap,
             Theme = _original.Theme,
             RecentFiles = [.. _original.RecentFiles],

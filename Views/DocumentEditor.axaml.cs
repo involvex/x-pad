@@ -646,6 +646,9 @@ public partial class DocumentEditor : UserControl
 
         if (e.PropertyName is nameof(DocumentViewModel.IsSplit) or nameof(DocumentViewModel.SplitVertical))
             ApplySplitLayout();
+
+        if (e.PropertyName is nameof(DocumentViewModel.InsertSpaces) or nameof(DocumentViewModel.IndentStyle))
+            ApplySettings();
     }
 
     private void ApplySplitLayout()
@@ -821,11 +824,13 @@ public partial class DocumentEditor : UserControl
         }
     }
 
-    private static void ApplyEditorOptions(TextEditor editor, AppSettings s)
+    public void RefreshEditorOptions() => ApplySettings();
+
+    private void ApplyEditorOptions(TextEditor editor, AppSettings s)
     {
         editor.FontSize = s.FontSize;
         editor.Options.IndentationSize = Math.Max(1, s.TabSize);
-        editor.Options.ConvertTabsToSpaces = s.InsertSpaces;
+        editor.Options.ConvertTabsToSpaces = _document?.InsertSpaces ?? s.InsertSpaces;
         editor.Options.ShowSpaces = s.ShowWhitespace;
         editor.Options.ShowTabs = s.ShowWhitespace;
         editor.Options.ShowEndOfLine = s.ShowWhitespace;
@@ -1469,7 +1474,7 @@ public partial class DocumentEditor : UserControl
         var previous = document.GetLineByNumber(line.LineNumber - 1);
         var previousText = document.GetText(previous.Offset, previous.Length);
         var tabSize = Math.Max(1, _settings?.Current.TabSize ?? 4);
-        var insertSpaces = _settings?.Current.InsertSpaces != false;
+        var insertSpaces = _document?.InsertSpaces ?? _settings?.Current.InsertSpaces != false;
         var indent = AutoIndent.ComputeNextLineIndent(previousText, tabSize, insertSpaces);
 
         // Dedent when the new line starts with a closing bracket typed later; for Enter alone

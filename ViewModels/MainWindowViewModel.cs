@@ -25,6 +25,7 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly FileService _fileService = new();
     private readonly SessionService _sessionService = new();
+    private readonly FormatService _formatService = new();
     private readonly SettingsService _settingsService;
     private readonly LspManager _lspManager;
     private readonly DispatcherTimer _autosaveTimer;
@@ -45,6 +46,7 @@ public partial class MainWindowViewModel : ViewModelBase
         public string EncodingName { get; init; } = "UTF-8";
         public bool HasBom { get; init; }
         public Encoding? TextEncoding { get; init; }
+        public bool InsertSpaces { get; init; } = true;
         public int Line { get; init; } = 1;
         public int Column { get; init; } = 1;
     }
@@ -178,15 +180,16 @@ public partial class MainWindowViewModel : ViewModelBase
             FontFamily = _settingsService.Current.FontFamily
         };
 
+        var preferSpaces = _settingsService.Current.InsertSpaces;
         if (File.Exists(path))
         {
             var snapshot = _fileService.ReadFile(path);
-            tab.ApplySnapshot(snapshot, path);
+            tab.ApplySnapshot(snapshot, path, preferSpaces);
             RememberRecent(path);
         }
         else
         {
-            tab.SetNewFile(path);
+            tab.SetNewFile(path, preferSpaces);
         }
 
         Tabs.Add(tab);
@@ -249,7 +252,7 @@ public partial class MainWindowViewModel : ViewModelBase
             FontSize = _settingsService.Current.FontSize,
             FontFamily = _settingsService.Current.FontFamily
         };
-        tab.SetUntitled($"Untitled {_untitledCount}");
+        tab.SetUntitled($"Untitled {_untitledCount}", _settingsService.Current.InsertSpaces);
         Tabs.Add(tab);
         SelectedTab = tab;
         StatusText = "New document";
@@ -319,16 +322,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 PendingRestoreColumn = restoreColumn
             };
 
+            var preferSpaces = _settingsService.Current.InsertSpaces;
             if (File.Exists(path))
             {
                 var snapshot = await _fileService.ReadFileAsync(path);
-                tab.ApplySnapshot(snapshot, path);
+                tab.ApplySnapshot(snapshot, path, preferSpaces);
                 RememberRecent(path);
                 StatusText = $"Opened {Path.GetFileName(path)}";
             }
             else
             {
-                tab.SetNewFile(path);
+                tab.SetNewFile(path, preferSpaces);
                 StatusText = $"New file: {Path.GetFileName(path)}";
             }
 
@@ -378,10 +382,10 @@ public partial class MainWindowViewModel : ViewModelBase
         await SaveTabAsAsync(SelectedTab);
     }
 
-    private async Task<bool> SaveTabAsync(DocumentViewModel tab)
+    private async Task<bool> SaveTabAsync(DocumentViewModel tab, bool runFormatOnSave = true)
     {
         if (string.IsNullOrWhiteSpace(tab.FilePath))
-            return await SaveTabAsAsync(tab);
+            return await SaveTabAsAsync(tab, runFormatOnSave);
 
         try
         {
@@ -397,6 +401,8 @@ public partial class MainWindowViewModel : ViewModelBase
             RememberRecent(tab.FilePath);
             SaveSession();
             StatusText = $"Saved {Path.GetFileName(tab.FilePath)}";
+            if (runFormatOnSave)
+                await TryFormatTabAsync(tab, onlyIfFormatOnSave: true);
             return true;
         }
         catch (Exception ex)
@@ -442,7 +448,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async Task<bool> SaveTabAsAsync(DocumentViewModel tab)
+    private async Task<bool> SaveTabAsAsync(DocumentViewModel tab, bool runFormatOnSave = true)
     {
         var topLevel = GetMainWindow();
         if (topLevel == null) return false;
@@ -461,6 +467,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var path = file.Path.LocalPath;
         try
         {
+            ApplySaveCleanup(tab);
             await _fileService.WriteFileAsync(
                 path,
                 tab.Text,
@@ -472,12 +479,78 @@ public partial class MainWindowViewModel : ViewModelBase
             RememberRecent(path);
             SaveSession();
             StatusText = $"Saved {Path.GetFileName(path)}";
+            if (runFormatOnSave)
+                await TryFormatTabAsync(tab, onlyIfFormatOnSave: true);
             return true;
         }
         catch (Exception ex)
         {
             StatusText = $"Save failed: {ex.Message}";
             return false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task FormatDocument()
+    {
+        if (SelectedTab == null)
+            return;
+
+        var command = _settingsService.Current.FormatCommand;
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            StatusText = "Set a format command in Preferences";
+            return;
+        }
+
+        // Persist first so the external tool can read the file; skip format-on-save to avoid a double run.
+        if (string.IsNullOrWhiteSpace(SelectedTab.FilePath) || SelectedTab.IsDirty)
+        {
+            if (!await SaveTabAsync(SelectedTab, runFormatOnSave: false))
+                return;
+        }
+
+        await TryFormatTabAsync(SelectedTab, onlyIfFormatOnSave: false);
+    }
+
+    private async Task TryFormatTabAsync(DocumentViewModel tab, bool onlyIfFormatOnSave)
+    {
+        var settings = _settingsService.Current;
+        if (string.IsNullOrWhiteSpace(settings.FormatCommand))
+            return;
+        if (onlyIfFormatOnSave && !settings.FormatOnSave)
+            return;
+        if (string.IsNullOrWhiteSpace(tab.FilePath) || !File.Exists(tab.FilePath))
+            return;
+        if (!FormatCommandHelper.MatchesExtension(tab.FilePath, settings.FormatExtensions))
+            return;
+
+        var line = Math.Max(1, tab.LineNumber);
+        var column = Math.Max(1, tab.ColumnNumber);
+        StatusText = $"Formatting {Path.GetFileName(tab.FilePath)}…";
+
+        var result = await _formatService.FormatFileAsync(settings.FormatCommand, tab.FilePath);
+        if (!result.Success)
+        {
+            StatusText = $"Format failed: {result.Error}";
+            return;
+        }
+
+        try
+        {
+            var snapshot = await _fileService.ReadFileAsync(tab.FilePath);
+            tab.PendingRestoreLine = line;
+            tab.PendingRestoreColumn = column;
+            tab.ApplySnapshot(snapshot, tab.FilePath, settings.InsertSpaces);
+            var editor = GetMainWindow()?.FindDocumentEditor(tab) ??
+                         (ReferenceEquals(tab, SelectedTab) ? GetSelectedEditor() : null);
+            editor?.RefreshEditorOptions();
+            editor?.RestorePendingCaret();
+            StatusText = $"Formatted {Path.GetFileName(tab.FilePath)}";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Format reload failed: {ex.Message}";
         }
     }
 
@@ -606,7 +679,8 @@ public partial class MainWindowViewModel : ViewModelBase
             snap.LineEndingKind,
             snap.TextEncoding ?? FileService.CreateUtf8(false),
             snap.HasBom,
-            snap.EncodingName);
+            snap.EncodingName,
+            snap.InsertSpaces);
 
         Tabs.Add(tab);
         SelectedTab = tab;
@@ -631,6 +705,7 @@ public partial class MainWindowViewModel : ViewModelBase
             EncodingName = tab.Encoding,
             HasBom = tab.HasBom,
             TextEncoding = tab.TextEncoding,
+            InsertSpaces = tab.InsertSpaces,
             Line = Math.Max(1, tab.LineNumber),
             Column = Math.Max(1, tab.ColumnNumber)
         });
@@ -1081,7 +1156,8 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var snapshot = await _fileService.ReadFileAsync(tab.FilePath);
-            tab.ApplySnapshot(snapshot, tab.FilePath);
+            tab.ApplySnapshot(snapshot, tab.FilePath, _settingsService.Current.InsertSpaces);
+            GetSelectedEditor()?.RefreshEditorOptions();
             StatusText = $"Reloaded {Path.GetFileName(tab.FilePath)}";
         }
         catch (Exception ex)
@@ -1468,6 +1544,15 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void CycleIndentStyle()
+    {
+        if (SelectedTab == null) return;
+        SelectedTab.SetInsertSpaces(!SelectedTab.InsertSpaces);
+        GetSelectedEditor()?.RefreshEditorOptions();
+        StatusText = $"Indent: {SelectedTab.IndentStyle}";
+    }
+
+    [RelayCommand]
     private void SetLanguage(object? parameter)
     {
         if (SelectedTab == null)
@@ -1709,6 +1794,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Remove Empty Lines", null, "Edit", () => { RemoveEmptyLines(); return Task.CompletedTask; }),
             Entry("Edit: Remove Duplicate Lines", null, "Edit", () => { RemoveDuplicateLines(); return Task.CompletedTask; }),
             Entry("Edit: Trim Trailing Whitespace", null, "Edit", () => { TrimTrailingWhitespace(); return Task.CompletedTask; }),
+            Entry("Edit: Format Document", "Shift+Alt+F", "Edit", () => FormatDocument()),
             Entry("Edit: Add Next Occurrence", "Ctrl+Alt+Right", "Edit", () => { AddNextOccurrence(); return Task.CompletedTask; }),
             Entry("Edit: Select All Occurrences", "Ctrl+Shift+L", "Edit", () => { SelectAllOccurrences(); return Task.CompletedTask; }),
             Entry("Edit: Select Current Line", "Ctrl+L", "Edit", () => { SelectCurrentLine(); return Task.CompletedTask; }),
@@ -1870,6 +1956,9 @@ public partial class MainWindowViewModel : ViewModelBase
             s.BackupOnSave = dialog.Result.BackupOnSave;
             s.AutosaveIntervalSeconds = dialog.Result.AutosaveIntervalSeconds;
             s.MinimizeToTray = dialog.Result.MinimizeToTray;
+            s.FormatCommand = dialog.Result.FormatCommand;
+            s.FormatOnSave = dialog.Result.FormatOnSave;
+            s.FormatExtensions = dialog.Result.FormatExtensions;
             s.LanguageServers = dialog.Result.LanguageServers;
         });
         ConfigureAutosaveTimer();
@@ -1968,7 +2057,8 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             var snapshot = await _fileService.ReadFileAsync(tab.FilePath);
-            tab.ApplySnapshot(snapshot, tab.FilePath);
+            tab.ApplySnapshot(snapshot, tab.FilePath, _settingsService.Current.InsertSpaces);
+            GetSelectedEditor()?.RefreshEditorOptions();
             StatusText = $"Reloaded {Path.GetFileName(tab.FilePath)}";
         }
         catch
@@ -2057,7 +2147,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     PendingRestoreLine = Math.Max(1, entry.Line),
                     PendingRestoreColumn = Math.Max(1, entry.Column)
                 };
-                tab.ApplySnapshot(snapshot, entry.Path);
+                tab.ApplySnapshot(snapshot, entry.Path, _settingsService.Current.InsertSpaces);
                 Tabs.Add(tab);
 
                 if (state.SelectedPath != null &&

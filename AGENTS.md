@@ -22,6 +22,11 @@ dotnet run -- path\to\file.txt
 dotnet run -- missing-new.txt
 xpad --help
 
+# Global xpad via Bun link → bin/Release/net10.0/xpad.exe
+dotnet build -c Release
+bun link
+xpad path\to\file.txt
+
 # Publish (Windows x64) — framework-dependent to publish/win-x64
 pwsh scripts/publish-win-x64.ps1
 # Self-contained single-file to publish/win-x64-sc
@@ -32,7 +37,8 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 ```
 
 PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
-`install-open-with.ps1`, `smoke-cli.ps1`, `smoke-single-instance.ps1`.
+`install-open-with.ps1`, `smoke-cli.ps1`, `smoke-single-instance.ps1`,
+`xpad.js` (Bun/npm bin launcher).
 
 ## Technologies
 
@@ -52,21 +58,24 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - **Views/** — MainWindow, DocumentEditor (AvaloniaEdit host), dialogs
 - **ViewModels/** — MainWindowViewModel, DocumentViewModel (`TextDocument` owned per tab)
 - **Services/** — FileService (encoding/BOM/line endings), SessionService, SettingsService,
-  EditorThemeService, SingleInstanceService, LanguageHelper, Lsp/*
-- **Editor/** — completion helpers
+  FormatService / FormatCommandHelper, EditorThemeService, SingleInstanceService,
+  LanguageHelper, Lsp/*
+- **Editor/** — completion helpers, IndentStyle detection
 - **Models/** — AppSettings, FileSnapshot, LineEndingKind
 
 ## Features
 
 - Tabbed editing with dirty close prompts, tab × / middle-click / Ctrl+Tab / move tab / reopen closed (`Ctrl+Shift+T`)
 - AvaloniaEdit: line numbers, TextMate highlighting, SearchPanel, folding (fold/unfold all), zoom, indent guides, font family prefs
-- Status-bar language override (TextMate) + encoding / EOL cycle; external-change prompt on tab switch and window focus
+- Status-bar language override (TextMate) + encoding / EOL / Tabs↔Spaces cycle; external-change prompt on tab switch and window focus
+- Per-buffer indent: detect tabs vs spaces from leading whitespace; Tab + auto-indent follow the buffer (prefs default for new/empty)
 - Bracket match/jump, word highlight, multi-occurrence edit, select line (`Ctrl+L`), auto-indent, line comments
 - Bookmarks (`Ctrl+F2` / `F2` / `Shift+F2`), rectangular selection (Alt+drag)
 - Command palette (`Ctrl+Shift+P`) for actions + recent files
 - Quick Open (`Ctrl+E`) for open tabs + recent files
 - Session restore with selected tab + caret line/column
 - Case/sort/join/trim + remove empty/duplicate lines; insert spaces vs tabs pref; trim + final newline on save; optional `.bak` backup on save
+- External formatter (`FormatCommand` with `$FILE`, format on save / `Shift+Alt+F` Format Document, optional extension filter)
 - Find in open tabs (`Ctrl+Shift+F`)
 - Optional autosave (prefs: interval seconds; 0 = off)
 - Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles)
@@ -75,6 +84,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Session restore (`%APPDATA%/XPad/session.json`)
 - Settings / Preferences (`%APPDATA%/XPad/settings.json`)
 - Windows single-instance + named-pipe file handoff; CLI open-or-create paths (`xpad --help`)
+- `package.json` + `scripts/xpad.js` for `bun link` → Release `xpad.exe`
 - Copy full path / Reveal in Explorer; status bar shows file path
 - Tools: SendTo shortcut + per-user Open With (common text/code types)
 - Reload from disk (prompts when dirty)

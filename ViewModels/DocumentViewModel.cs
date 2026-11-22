@@ -38,6 +38,12 @@ public partial class DocumentViewModel : ViewModelBase
     private string lineEnding = "LF";
 
     [ObservableProperty]
+    private bool insertSpaces = true;
+
+    [ObservableProperty]
+    private string indentStyle = "Spaces";
+
+    [ObservableProperty]
     private string encoding = "UTF-8";
 
     [ObservableProperty]
@@ -97,7 +103,7 @@ public partial class DocumentViewModel : ViewModelBase
         Document.UndoStack.PropertyChanged += OnUndoStackPropertyChanged;
     }
 
-    public void ApplySnapshot(FileSnapshot snapshot, string path)
+    public void ApplySnapshot(FileSnapshot snapshot, string path, bool preferInsertSpaces = true)
     {
         FilePath = path;
         _baseTitle = Path.GetFileName(path);
@@ -108,6 +114,7 @@ public partial class DocumentViewModel : ViewModelBase
         LineEnding = snapshot.LineEnding.ToDisplay();
         LastWriteTimeUtc = snapshot.LastWriteTimeUtc;
         Text = snapshot.Text;
+        SetInsertSpaces(x_pad.Editor.IndentStyle.ResolveInsertSpaces(snapshot.Text, preferInsertSpaces));
         Title = _baseTitle;
         IsDirty = false;
     }
@@ -129,7 +136,7 @@ public partial class DocumentViewModel : ViewModelBase
         }
     }
 
-    public void SetUntitled(string title)
+    public void SetUntitled(string title, bool insertSpaces = true)
     {
         FilePath = null;
         _baseTitle = title;
@@ -141,6 +148,7 @@ public partial class DocumentViewModel : ViewModelBase
         LineEnding = "LF";
         Language = "Plain Text";
         LanguageOverrideExtension = null;
+        SetInsertSpaces(insertSpaces);
         Text = "";
         IsDirty = false;
     }
@@ -148,7 +156,7 @@ public partial class DocumentViewModel : ViewModelBase
     /// <summary>
     /// Opens a path that does not exist yet (Notepad-style): empty buffer, path set for Save.
     /// </summary>
-    public void SetNewFile(string path)
+    public void SetNewFile(string path, bool insertSpaces = true)
     {
         FilePath = path;
         _baseTitle = Path.GetFileName(path);
@@ -160,6 +168,7 @@ public partial class DocumentViewModel : ViewModelBase
         LineEnding = "LF";
         LastWriteTimeUtc = null;
         LanguageOverrideExtension = null;
+        SetInsertSpaces(insertSpaces);
         Text = "";
         IsDirty = false;
     }
@@ -168,6 +177,12 @@ public partial class DocumentViewModel : ViewModelBase
     {
         LineEndingKind = kind;
         LineEnding = kind.ToDisplay();
+    }
+
+    public void SetInsertSpaces(bool insertSpaces)
+    {
+        InsertSpaces = insertSpaces;
+        IndentStyle = x_pad.Editor.IndentStyle.ToDisplay(insertSpaces);
     }
 
     /// <summary>Restores a closed-tab buffer (path optional). Does not touch LastWriteTimeUtc.</summary>
@@ -179,7 +194,8 @@ public partial class DocumentViewModel : ViewModelBase
         LineEndingKind lineEnding,
         Encoding encoding,
         bool hasBom,
-        string encodingName)
+        string encodingName,
+        bool insertSpaces = true)
     {
         FilePath = path;
         _baseTitle = !string.IsNullOrWhiteSpace(path) ? Path.GetFileName(path) : title;
@@ -187,6 +203,7 @@ public partial class DocumentViewModel : ViewModelBase
         HasBom = hasBom;
         Encoding = encodingName;
         SetLineEnding(lineEnding);
+        SetInsertSpaces(insertSpaces);
         _suppressDirty = true;
         Document.Text = text ?? "";
         Document.UndoStack.ClearAll();

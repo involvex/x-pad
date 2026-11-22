@@ -19,6 +19,18 @@ public sealed class AppSettings
     public bool BackupOnSave { get; set; } = true;
     /// <summary>Autosave interval in seconds for dirty files with a path. 0 disables.</summary>
     public int AutosaveIntervalSeconds { get; set; }
+    /// <summary>
+    /// External format command. Use <c>$FILE</c> for the path (e.g. <c>bunx prettier --write $FILE</c>).
+    /// Empty disables formatting.
+    /// </summary>
+    public string FormatCommand { get; set; } = "";
+    /// <summary>When true, run <see cref="FormatCommand"/> after a successful save (including autosave).</summary>
+    public bool FormatOnSave { get; set; }
+    /// <summary>
+    /// Comma-separated extensions to format (e.g. <c>.js,.ts,.json,.md</c>).
+    /// Empty means every saved file with a path.
+    /// </summary>
+    public string FormatExtensions { get; set; } = "";
     public bool WordWrap { get; set; }
     /// <summary>When true, minimizing the main window hides it to the system tray.</summary>
     public bool MinimizeToTray { get; set; } = true;

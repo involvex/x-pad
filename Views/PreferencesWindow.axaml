@@ -3,7 +3,7 @@
         x:Class="x_pad.Views.PreferencesWindow"
         Title="Preferences"
         Width="480"
-        Height="640"
+        Height="720"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
     <DockPanel Margin="16">
@@ -60,6 +60,37 @@
                 </Grid>
 
                 <Separator />
+                <TextBlock Text="Formatter" FontWeight="SemiBold" />
+                <TextBlock Text="Example: bunx prettier --write $FILE"
+                           Opacity="0.7"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Format command" VerticalAlignment="Center" />
+                    <TextBox x:Name="FormatCommandBox"
+                             Grid.Row="0"
+                             Grid.Column="1"
+                             PlaceholderText="bunx prettier --write $FILE"
+                             FontFamily="Cascadia Code, Consolas, monospace"
+                             FontSize="12" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Format on save" VerticalAlignment="Center" />
+                    <CheckBox x:Name="FormatOnSaveBox" Grid.Row="1" Grid.Column="1" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Format extensions" VerticalAlignment="Center" />
+                    <TextBox x:Name="FormatExtensionsBox"
+                             Grid.Row="2"
+                             Grid.Column="1"
+                             PlaceholderText=".js,.ts,.jsx,.tsx,.json,.css,.md"
+                             FontFamily="Cascadia Code, Consolas, monospace"
+                             FontSize="12" />
+                </Grid>
+                <TextBlock Text="Leave extensions empty to format every saved file. Format Document always runs when a command is set."
+                           Opacity="0.7"
+                           FontSize="11"
+                           TextWrapping="Wrap" />
+
+                <Separator />
                 <TextBlock Text="Language servers (optional)" FontWeight="SemiBold" />
                 <TextBlock Text="One per line: language=command --stdio"
                            Opacity="0.7"
@@ -67,7 +98,7 @@
                            TextWrapping="Wrap" />
                 <TextBox x:Name="LspBox"
                          AcceptsReturn="True"
-                         Height="160"
+                         Height="140"
                          TextWrapping="NoWrap"
                          FontFamily="Cascadia Code, Consolas, monospace"
                          FontSize="12" />
