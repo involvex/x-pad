@@ -115,6 +115,13 @@
                 <MenuItem Header="Close _Others" Command="{Binding CloseOthersCommand}" />
                 <MenuItem Header="Close _All" Command="{Binding CloseAllCommand}" />
                 <Separator />
+                <MenuItem Header="_Encoding">
+                    <MenuItem Header="UTF-8" Command="{Binding SetEncodingUtf8Command}" />
+                    <MenuItem Header="UTF-8 with BOM" Command="{Binding SetEncodingUtf8BomCommand}" />
+                    <MenuItem Header="UTF-16 LE" Command="{Binding SetEncodingUtf16LeCommand}" />
+                    <MenuItem Header="Latin-1" Command="{Binding SetEncodingLatin1Command}" />
+                </MenuItem>
+                <Separator />
                 <MenuItem Header="E_xit" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
             </MenuItem>
             <MenuItem Header="_Edit">
@@ -139,15 +146,18 @@
                 <MenuItem Header="Trigger _Completions" Command="{Binding TriggerCompletionsCommand}" InputGesture="Ctrl+Space" />
                 <MenuItem Header="Toggle Line _Comment" Command="{Binding ToggleLineCommentCommand}" InputGesture="Ctrl+OemQuestion" />
                 <Separator />
-                <MenuItem Header="_Upper Case" Command="{Binding UpperCaseCommand}" InputGesture="Ctrl+U" />
-                <MenuItem Header="_Lower Case" Command="{Binding LowerCaseCommand}" InputGesture="Ctrl+Shift+U" />
-                <MenuItem Header="_Title Case" Command="{Binding TitleCaseCommand}" />
-                <MenuItem Header="Sort Lines A→_Z" Command="{Binding SortLinesAscendingCommand}" />
-                <MenuItem Header="Sort Lines Z→A" Command="{Binding SortLinesDescendingCommand}" />
-                <MenuItem Header="_Join Lines" Command="{Binding JoinLinesCommand}" InputGesture="Ctrl+J" />
-                <MenuItem Header="Remove _Empty Lines" Command="{Binding RemoveEmptyLinesCommand}" />
-                <MenuItem Header="Remove Duplicate Lines" Command="{Binding RemoveDuplicateLinesCommand}" />
-                <MenuItem Header="Trim Trailing _Whitespace" Command="{Binding TrimTrailingWhitespaceCommand}" />
+                <MenuItem Header="_Transform">
+                    <MenuItem Header="_Upper Case" Command="{Binding UpperCaseCommand}" InputGesture="Ctrl+U" />
+                    <MenuItem Header="_Lower Case" Command="{Binding LowerCaseCommand}" InputGesture="Ctrl+Shift+U" />
+                    <MenuItem Header="_Title Case" Command="{Binding TitleCaseCommand}" />
+                    <Separator />
+                    <MenuItem Header="Sort Lines A→_Z" Command="{Binding SortLinesAscendingCommand}" />
+                    <MenuItem Header="Sort Lines Z→A" Command="{Binding SortLinesDescendingCommand}" />
+                    <MenuItem Header="_Join Lines" Command="{Binding JoinLinesCommand}" InputGesture="Ctrl+J" />
+                    <MenuItem Header="Remove _Empty Lines" Command="{Binding RemoveEmptyLinesCommand}" />
+                    <MenuItem Header="Remove Duplicate Lines" Command="{Binding RemoveDuplicateLinesCommand}" />
+                    <MenuItem Header="Trim Trailing _Whitespace" Command="{Binding TrimTrailingWhitespaceCommand}" />
+                </MenuItem>
                 <MenuItem Header="_Format Document" Command="{Binding FormatDocumentCommand}" InputGesture="Shift+Alt+F" />
                 <MenuItem Header="Insert Date/_Time" Command="{Binding InsertDateTimeCommand}" InputGesture="F5" />
                 <Separator />
@@ -159,40 +169,69 @@
                 <MenuItem Header="_Go to Line..." Command="{Binding GoToLineCommand}" InputGesture="Ctrl+G" />
             </MenuItem>
             <MenuItem Header="_View">
-                <MenuItem Header="_Word Wrap" Command="{Binding ToggleWordWrapCommand}" InputGesture="Alt+Z" />
-                <MenuItem Header="Show White_space" Command="{Binding ToggleWhitespaceCommand}" />
-                <MenuItem Header="Always on _Top" Command="{Binding ToggleAlwaysOnTopCommand}" />
-                <MenuItem Header="Split _Vertical" Command="{Binding ToggleSplitVerticalCommand}" />
-                <MenuItem Header="Split _Horizontal" Command="{Binding ToggleSplitHorizontalCommand}" />
-                <MenuItem Header="_Terminal" Command="{Binding ToggleTerminalCommand}" InputGesture="Ctrl+OemTilde" />
-                <MenuItem Header="Next Tab" Command="{Binding NextTabCommand}" InputGesture="Ctrl+Tab" />
-                <MenuItem Header="Previous Tab" Command="{Binding PreviousTabCommand}" InputGesture="Ctrl+Shift+Tab" />
-                <MenuItem Header="Move Tab _Left" Command="{Binding MoveTabLeftCommand}" InputGesture="Ctrl+Shift+PageUp" />
-                <MenuItem Header="Move Tab _Right" Command="{Binding MoveTabRightCommand}" InputGesture="Ctrl+Shift+PageDown" />
-                <MenuItem Header="_Fold All" Command="{Binding FoldAllCommand}" />
-                <MenuItem Header="_Unfold All" Command="{Binding UnfoldAllCommand}" />
-                <Separator />
-                <MenuItem Header="Zoom _In" Command="{Binding ZoomInCommand}" InputGesture="Ctrl+OemPlus" />
-                <MenuItem Header="Zoom _Out" Command="{Binding ZoomOutCommand}" InputGesture="Ctrl+OemMinus" />
-                <MenuItem Header="Zoom _Reset" Command="{Binding ZoomResetCommand}" InputGesture="Ctrl+D0" />
-                <Separator />
-                <MenuItem Header="Toggle _Bookmark" Command="{Binding ToggleBookmarkCommand}" InputGesture="Ctrl+F2" />
-                <MenuItem Header="_Next Bookmark" Command="{Binding NextBookmarkCommand}" InputGesture="F2" />
-                <MenuItem Header="_Previous Bookmark" Command="{Binding PreviousBookmarkCommand}" InputGesture="Shift+F2" />
-                <MenuItem Header="Clear Book_marks" Command="{Binding ClearBookmarksCommand}" />
-                <Separator />
-                <MenuItem Header="_Encoding">
-                    <MenuItem Header="UTF-8" Command="{Binding SetEncodingUtf8Command}" />
-                    <MenuItem Header="UTF-8 with BOM" Command="{Binding SetEncodingUtf8BomCommand}" />
-                    <MenuItem Header="UTF-16 LE" Command="{Binding SetEncodingUtf16LeCommand}" />
-                    <MenuItem Header="Latin-1" Command="{Binding SetEncodingLatin1Command}" />
+                <MenuItem Header="_Word Wrap"
+                         ToggleType="CheckBox"
+                         IsChecked="{Binding WordWrap}"
+                         InputGesture="Alt+Z" />
+                <MenuItem Header="Show White_space"
+                         ToggleType="CheckBox"
+                         IsChecked="{Binding ShowWhitespace}" />
+                <MenuItem Header="Always on _Top"
+                         ToggleType="CheckBox"
+                         IsChecked="{Binding AlwaysOnTop}" />
+                <MenuItem Header="_Terminal"
+                         ToggleType="CheckBox"
+                         IsChecked="{Binding IsTerminalVisible}"
+                         InputGesture="Ctrl+OemTilde" />
+                <MenuItem Header="_Split">
+                    <MenuItem Header="_Vertical"
+                             ToggleType="CheckBox"
+                             IsChecked="{Binding IsSplitVerticalActive, Mode=OneWay}"
+                             Command="{Binding ToggleSplitVerticalCommand}" />
+                    <MenuItem Header="_Horizontal"
+                             ToggleType="CheckBox"
+                             IsChecked="{Binding IsSplitHorizontalActive, Mode=OneWay}"
+                             Command="{Binding ToggleSplitHorizontalCommand}" />
                 </MenuItem>
-                <Separator />
-                <MenuItem Header="_Dark Mode" Command="{Binding ToggleDarkModeCommand}" />
-                <MenuItem Header="_Light Mode" Command="{Binding ToggleLightModeCommand}" />
-                <MenuItem Header="_System Theme" Command="{Binding ToggleSystemThemeCommand}" />
-                <Separator />
-                <MenuItem Header="_Monokai" Command="{Binding ToggleMonokaiThemeCommand}" />
+                <MenuItem Header="_Zoom">
+                    <MenuItem Header="Zoom _In" Command="{Binding ZoomInCommand}" InputGesture="Ctrl+OemPlus" />
+                    <MenuItem Header="Zoom _Out" Command="{Binding ZoomOutCommand}" InputGesture="Ctrl+OemMinus" />
+                    <MenuItem Header="Zoom _Reset" Command="{Binding ZoomResetCommand}" InputGesture="Ctrl+D0" />
+                </MenuItem>
+                <MenuItem Header="_Tabs">
+                    <MenuItem Header="Next Tab" Command="{Binding NextTabCommand}" InputGesture="Ctrl+Tab" />
+                    <MenuItem Header="Previous Tab" Command="{Binding PreviousTabCommand}" InputGesture="Ctrl+Shift+Tab" />
+                    <MenuItem Header="Move Tab _Left" Command="{Binding MoveTabLeftCommand}" InputGesture="Ctrl+Shift+PageUp" />
+                    <MenuItem Header="Move Tab _Right" Command="{Binding MoveTabRightCommand}" InputGesture="Ctrl+Shift+PageDown" />
+                </MenuItem>
+                <MenuItem Header="_Folding">
+                    <MenuItem Header="_Fold All" Command="{Binding FoldAllCommand}" />
+                    <MenuItem Header="_Unfold All" Command="{Binding UnfoldAllCommand}" />
+                </MenuItem>
+                <MenuItem Header="_Bookmarks">
+                    <MenuItem Header="Toggle _Bookmark" Command="{Binding ToggleBookmarkCommand}" InputGesture="Ctrl+F2" />
+                    <MenuItem Header="_Next Bookmark" Command="{Binding NextBookmarkCommand}" InputGesture="F2" />
+                    <MenuItem Header="_Previous Bookmark" Command="{Binding PreviousBookmarkCommand}" InputGesture="Shift+F2" />
+                    <MenuItem Header="Clear Book_marks" Command="{Binding ClearBookmarksCommand}" />
+                </MenuItem>
+                <MenuItem Header="T_heme">
+                    <MenuItem Header="_Dark"
+                             ToggleType="Radio"
+                             GroupName="AppTheme"
+                             IsChecked="{Binding IsThemeDark}" />
+                    <MenuItem Header="_Light"
+                             ToggleType="Radio"
+                             GroupName="AppTheme"
+                             IsChecked="{Binding IsThemeLight}" />
+                    <MenuItem Header="_System"
+                             ToggleType="Radio"
+                             GroupName="AppTheme"
+                             IsChecked="{Binding IsThemeSystem}" />
+                    <MenuItem Header="_Monokai"
+                             ToggleType="Radio"
+                             GroupName="AppTheme"
+                             IsChecked="{Binding IsThemeMonokai}" />
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="_Preferences..." Command="{Binding OpenPreferencesCommand}" InputGesture="Ctrl+OemComma" />
                 <MenuItem Header="Command _Palette..." Command="{Binding OpenCommandPaletteCommand}" InputGesture="Ctrl+Shift+P" />
@@ -203,6 +242,7 @@
                 <MenuItem Header="Register Open _With (text types)" Command="{Binding RegisterOpenWithCommand}" />
             </MenuItem>
             <MenuItem Header="_Help">
+                <MenuItem Header="_Check for Updates..." Command="{Binding CheckForUpdatesCommand}" />
                 <MenuItem Header="_About X-Pad" Command="{Binding ShowAboutCommand}" />
             </MenuItem>
         </Menu>

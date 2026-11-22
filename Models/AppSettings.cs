@@ -35,6 +35,10 @@ public sealed class AppSettings
     /// <summary>When true, minimizing the main window hides it to the system tray.</summary>
     public bool MinimizeToTray { get; set; } = true;
     public string Theme { get; set; } = "Dark";
+    /// <summary>When true, check GitHub Releases for a newer version shortly after startup.</summary>
+    public bool CheckForUpdatesOnStartup { get; set; } = true;
+    /// <summary>UTC timestamp of the last successful or attempted update check (ISO-8601).</summary>
+    public string? LastUpdateCheckUtc { get; set; }
     public List<string> RecentFiles { get; set; } = [];
     public int MaxRecentFiles { get; set; } = 12;
     public List<string> FavoriteFiles { get; set; } = [];
