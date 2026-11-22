@@ -64,3 +64,4 @@ Assets/xpad-icon-source.jpg
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+.cline/
