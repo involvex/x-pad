@@ -55,6 +55,17 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 
 This adds **Send to → X-Pad** and per-user **Open with** for common text/code types. It does **not** replace `notepad.exe` as the system default.
 
+## Cut a release
+
+```powershell
+pwsh scripts/release.ps1              # patch bump (default)
+pwsh scripts/release.ps1 -Bump minor
+pwsh scripts/release.ps1 -Version 1.0.0
+pwsh scripts/release.ps1 -DryRun
+```
+
+Updates `<Version>` in `x-pad.csproj` (About panel), `package.json`, and `CHANGELOG.md`, then commits, tags `vX.Y.Z`, and pushes. The [release workflow](.github/workflows/release.yml) builds the zips and creates the GitHub Release for that tag.
+
 ## Settings
 
 Stored under `%APPDATA%\XPad\`:

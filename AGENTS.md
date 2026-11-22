@@ -34,11 +34,18 @@ pwsh scripts/publish-win-x64.ps1 -Mode selfcontained
 
 # Optional Open-with / SendTo helper
 pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
+
+# Cut a release (patch bump default): bump csproj/package.json, CHANGELOG, tag, push
+# Tag push triggers .github/workflows/release.yml (artifacts + GitHub Release)
+pwsh scripts/release.ps1
+pwsh scripts/release.ps1 -Bump minor
+pwsh scripts/release.ps1 -Version 1.0.0
+pwsh scripts/release.ps1 -DryRun
 ```
 
 PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 `install-open-with.ps1`, `smoke-cli.ps1`, `smoke-single-instance.ps1`,
-`xpad.js` (Bun/npm bin launcher).
+`release.ps1`, `xpad.js` (Bun/npm bin launcher).
 
 ## Technologies
 
