@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>X-Pad — lightweight notepad</title>
+  <meta name="description" content="X-Pad is a modern cross-platform notepad built with Avalonia UI and AvaloniaEdit. Tabs, TextMate highlighting, optional LSP, and session restore." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="./">
+        <span class="brand-mark">X-Pad</span>
+        <span class="brand-tag">docs</span>
+      </a>
+      <nav class="topbar-links" aria-label="External">
+        <a href="https://github.com/involvex/x-pad">GitHub</a>
+        <a href="https://github.com/involvex/x-pad/releases">Releases</a>
+        <a href="./privacy.html">Privacy</a>
+      </nav>
+    </header>
+
+    <div class="layout">
+      <nav class="toc" aria-label="On this page">
+        <p class="toc-label">Contents</p>
+        <ol>
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#install">Run &amp; install</a></li>
+          <li><a href="#editing">Editing</a></li>
+          <li><a href="#language">Language tools</a></li>
+          <li><a href="#shortcuts">Shortcuts</a></li>
+          <li><a href="#settings">Settings &amp; updates</a></li>
+        </ol>
+      </nav>
+
+      <main>
+        <header class="hero">
+          <p class="hero-kicker">Notepad for daily editing</p>
+          <h1>A lightweight editor that keeps your files honest.</h1>
+          <p class="hero-lead">
+            X-Pad is a Notepad / Notepad++ / Atom-style editor built with
+            <strong>.NET&nbsp;10</strong>, <strong>Avalonia&nbsp;UI</strong>, and
+            <strong>AvaloniaEdit</strong> (TextMate highlighting). Tabs, session restore,
+            encodings that round-trip, and optional LSP — without the IDE weight.
+          </p>
+          <span class="version-pill">docs for 0.5.1</span>
+        </header>
+
+        <section class="section" id="overview">
+          <h2>Overview</h2>
+          <ul class="feature-grid">
+            <li><strong>Tabs &amp; session</strong> Dirty close prompts, restore files + caret, reopen closed tabs.</li>
+            <li><strong>Syntax &amp; themes</strong> TextMate highlighting; Dark, Light, System, Monokai.</li>
+            <li><strong>Find everywhere</strong> In buffer, open tabs, or folder — case, whole word, regex.</li>
+            <li><strong>File fidelity</strong> Encoding, BOM, and CRLF/LF/CR preserved on save.</li>
+            <li><strong>Workspace</strong> Open Folder explorer; find/replace on disk under the root.</li>
+            <li><strong>Optional LSP</strong> Hover, definition, references, outline, code actions.</li>
+          </ul>
+          <p>
+            Settings and recovery live under <code class="inline">%APPDATA%\XPad\</code>
+            (<code class="inline">settings.json</code>, <code class="inline">session.json</code>,
+            <code class="inline">recovery/</code>).
+          </p>
+        </section>
+
+        <section class="section" id="install">
+          <h2>Run &amp; install</h2>
+          <h3>From source</h3>
+          <pre class="pre"><code>dotnet restore
+dotnet build
+dotnet run
+dotnet test</code></pre>
+          <p>Open a file, create an empty buffer, or open a folder:</p>
+          <pre class="pre"><code>dotnet run -- path\to\file.txt
+dotnet run -- new-notes.txt    # empty buffer; Save creates the file
+dotnet run -- path\to\folder
+xpad --help</code></pre>
+
+          <h3>Global <code class="inline">xpad</code> via Bun link</h3>
+          <pre class="pre"><code>dotnet build -c Release
+bun link
+xpad path\to\file.txt</code></pre>
+          <p>
+            <code class="inline">scripts/xpad.js</code> launches
+            <code class="inline">bin/Release/net10.0/xpad.exe</code>. A second launch hands files to the running instance.
+          </p>
+
+          <h3>Windows publish</h3>
+          <pre class="pre"><code>pwsh scripts/publish-win-x64.ps1
+pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe</code></pre>
+          <p>
+            Adds <strong>Send to → X-Pad</strong> and per-user <strong>Open with</strong> for common text/code types.
+            It does not replace <code class="inline">notepad.exe</code> as the system default.
+            Use <code class="inline">-Mode selfcontained</code> for a single-file self-contained publish.
+          </p>
+
+          <h3>Microsoft Store (MSIX)</h3>
+          <pre class="pre"><code># Local sideload (default XPad.Dev identity)
+pwsh scripts/publish-msix.ps1 -Install
+
+# Store upload — Partner Center identity
+pwsh scripts/publish-msix.ps1 `
+  -PackageName "&lt;identity name&gt;" `
+  -Publisher "&lt;CN=...&gt;" `
+  -PublisherDisplayName "&lt;publisher display name&gt;"</code></pre>
+          <p>
+            Needs the Windows SDK (<code class="inline">makeappx</code>). Store/MSIX installs skip the GitHub updater.
+            Listing needs screenshots, box art, a
+            <a href="./privacy.html">privacy policy URL</a>, and an IARC age rating.
+          </p>
+        </section>
+
+        <section class="section" id="editing">
+          <h2>Editing</h2>
+          <ul>
+            <li>Find / replace in the current buffer; find/replace in open tabs (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F</kbd></span>) and in the workspace folder (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>H</kbd></span>).</li>
+            <li>Bookmarks, bracket match/jump, multi-occurrence edit, rectangular selection (Alt+drag).</li>
+            <li>Per-tab word wrap (<span class="kbd"><kbd>Alt</kbd><span class="plus">+</span><kbd>Z</kbd></span>); Preferences Word Wrap is the default for new tabs only.</li>
+            <li>Per-buffer tabs vs spaces, detected from leading whitespace; status-bar toggle.</li>
+            <li>Encoding + BOM + line endings preserved; re-decode from kept source bytes (UTF-8 / BOM / UTF-16 LE+BE / Latin-1).</li>
+            <li>Read-only from file attributes or File menu; status-bar <code class="inline">RO</code>.</li>
+            <li>Large-file guard (above 8&nbsp;MB): plain open, skip folding / word completion / full-text LSP.</li>
+            <li>Crash recovery for dirty/untitled buffers; clean exit clears <code class="inline">recovery/</code>.</li>
+            <li>Optional autosave, <code class="inline">.bak</code> backup on save, trim + final newline on save.</li>
+            <li>Command palette (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>P</kbd></span>), Quick Open (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>E</kbd></span>), embedded terminal (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>`</kbd></span>).</li>
+          </ul>
+        </section>
+
+        <section class="section" id="language">
+          <h2>Language tools</h2>
+          <p>
+            TextMate grammars drive syntax highlighting. Override the language from the status bar when the extension guess is wrong.
+          </p>
+          <p>
+            Word completion (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Space</kbd></span>) works without a server.
+            Optional stdio language servers are configured in Preferences → Language servers:
+          </p>
+          <ul>
+            <li>Hover and diagnostics (squiggles)</li>
+            <li>Go to definition (<span class="kbd"><kbd>F12</kbd></span>)</li>
+            <li>Find references (<span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>F12</kbd></span>)</li>
+            <li>Document outline (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>.</kbd></span>)</li>
+            <li>Code actions with text edits (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>.</kbd></span>)</li>
+          </ul>
+          <p>
+            Missing servers are ignored. LSP <code class="inline">rootUri</code> follows the Open Folder workspace when one is set.
+          </p>
+          <p>
+            An external formatter command (<code class="inline">$FILE</code> placeholder) can run on save or via
+            Format Document (<span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>F</kbd></span>).
+          </p>
+        </section>
+
+        <section class="section" id="shortcuts">
+          <h2>Shortcuts</h2>
+
+          <h3>File &amp; tabs</h3>
+          <table class="kbd-table">
+            <thead><tr><th>Action</th><th>Keys</th></tr></thead>
+            <tbody>
+              <tr><td>New tab</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>N</kbd></span></td></tr>
+              <tr><td>Open file</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>O</kbd></span></td></tr>
+              <tr><td>Open folder</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>O</kbd></span></td></tr>
+              <tr><td>Save / Save As</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>S</kbd></span> / <span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>S</kbd></span></td></tr>
+              <tr><td>Close tab / Reopen</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>W</kbd></span> / <span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>T</kbd></span></td></tr>
+              <tr><td>Next / previous tab</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Tab</kbd></span> / <span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Tab</kbd></span></td></tr>
+              <tr><td>Print</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>P</kbd></span></td></tr>
+            </tbody>
+          </table>
+
+          <h3>Find &amp; navigate</h3>
+          <table class="kbd-table">
+            <thead><tr><th>Action</th><th>Keys</th></tr></thead>
+            <tbody>
+              <tr><td>Find / Replace</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F</kbd></span> / <span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>H</kbd></span></td></tr>
+              <tr><td>Find next / previous</td><td><span class="kbd"><kbd>F3</kbd></span> / <span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>F3</kbd></span></td></tr>
+              <tr><td>Find in open tabs</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F</kbd></span></td></tr>
+              <tr><td>Find in folder</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>H</kbd></span></td></tr>
+              <tr><td>Go to line</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>G</kbd></span></td></tr>
+              <tr><td>Command palette</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>P</kbd></span></td></tr>
+              <tr><td>Quick Open</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>E</kbd></span></td></tr>
+              <tr><td>Preferences</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>,</kbd></span></td></tr>
+            </tbody>
+          </table>
+
+          <h3>Edit &amp; view</h3>
+          <table class="kbd-table">
+            <thead><tr><th>Action</th><th>Keys</th></tr></thead>
+            <tbody>
+              <tr><td>Duplicate / move line</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>D</kbd></span> / <span class="kbd"><kbd>Alt</kbd><span class="plus">+</span><kbd>↑</kbd></span> <span class="kbd"><kbd>↓</kbd></span></td></tr>
+              <tr><td>Select line / all occurrences</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>L</kbd></span> / <span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>L</kbd></span></td></tr>
+              <tr><td>Add next occurrence</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>→</kbd></span></td></tr>
+              <tr><td>Toggle comment</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>/</kbd></span></td></tr>
+              <tr><td>Format document</td><td><span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>F</kbd></span></td></tr>
+              <tr><td>Word wrap</td><td><span class="kbd"><kbd>Alt</kbd><span class="plus">+</span><kbd>Z</kbd></span></td></tr>
+              <tr><td>Bookmarks</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F2</kbd></span> / <span class="kbd"><kbd>F2</kbd></span> / <span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>F2</kbd></span></td></tr>
+              <tr><td>Zoom</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>+</kbd></span> / <span class="kbd"><kbd>−</kbd></span> / <span class="kbd"><kbd>0</kbd></span></td></tr>
+              <tr><td>Terminal</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>`</kbd></span></td></tr>
+            </tbody>
+          </table>
+
+          <h3>LSP</h3>
+          <table class="kbd-table">
+            <thead><tr><th>Action</th><th>Keys</th></tr></thead>
+            <tbody>
+              <tr><td>Go to definition</td><td><span class="kbd"><kbd>F12</kbd></span></td></tr>
+              <tr><td>Find references</td><td><span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>F12</kbd></span></td></tr>
+              <tr><td>Document outline</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>.</kbd></span></td></tr>
+              <tr><td>Code actions</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>.</kbd></span></td></tr>
+              <tr><td>Completions</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Space</kbd></span></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section" id="settings">
+          <h2>Settings &amp; updates</h2>
+          <p>Under <code class="inline">%APPDATA%\XPad\</code>:</p>
+          <ul>
+            <li><code class="inline">settings.json</code> — editor prefs, LSP commands, recent files, update prefs</li>
+            <li><code class="inline">session.json</code> — last open files + caret positions</li>
+            <li><code class="inline">recovery/</code> — dirty/untitled snapshots (cleared on clean exit)</li>
+          </ul>
+          <p>
+            Preferences (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>,</kbd></span>) use a sidebar:
+            Editor, Saving, Appearance, Formatter, Language servers, Updates.
+          </p>
+          <div class="callout">
+            <strong>Updates.</strong>
+            Help → Check for Updates queries
+            <a href="https://github.com/involvex/x-pad/releases/latest">GitHub Releases</a>.
+            Published installs can update in place after you confirm. Store/MSIX installs use the Store instead.
+            Startup checks run at most every 12 hours and never download until you confirm.
+          </div>
+          <p>
+            Cut a release with <code class="inline">pwsh scripts/release.ps1</code> (patch bump by default).
+            Tag push runs the release workflow and attaches the Windows zips.
+          </p>
+        </section>
+
+        <footer class="footer">
+          <p>
+            X-Pad is MIT-licensed — see
+            <a href="https://github.com/involvex/x-pad/blob/main/LICENSE">LICENSE</a>
+            on GitHub. Third-party packages (Avalonia, TextMateSharp, and others) keep their own licenses.
+          </p>
+          <p>
+            <a href="https://github.com/involvex/x-pad">github.com/involvex/x-pad</a>
+            ·
+            <a href="./privacy.html">Privacy</a>
+          </p>
+        </footer>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

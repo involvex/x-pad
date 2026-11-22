@@ -4,6 +4,8 @@ Lightweight Notepad / Notepad++ / Atom-style editor for daily text editing.
 
 Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highlighting).
 
+**Documentation:** [involvex.github.io/x-pad](https://involvex.github.io/x-pad/) — preview locally by opening [`site/index.html`](site/index.html).
+
 ## Highlights
 
 - Tabs, dirty close prompts, session restore (files + caret)
@@ -75,7 +77,7 @@ pwsh scripts/publish-msix.ps1 `
   -PublisherDisplayName "<publisher display name>"
 ```
 
-Requires the Windows 10/11 SDK (`makeappx` / `signtool`). Output: `publish/xpad-<version>-win-x64.msix`. The Store re-signs the package; do not attach the MSIX to GitHub Releases (zip releases stay unchanged). A Store/MSIX install skips the GitHub updater and is updated by the Store. Listing still needs screenshots, 1:1 box art, a privacy-policy URL, and the IARC age rating.
+Requires the Windows 10/11 SDK (`makeappx` / `signtool`). Output: `publish/xpad-<version>-win-x64.msix`. The Store re-signs the package; do not attach the MSIX to GitHub Releases (zip releases stay unchanged). A Store/MSIX install skips the GitHub updater and is updated by the Store. Listing still needs screenshots, 1:1 box art, a privacy-policy URL ([site/privacy.html](https://involvex.github.io/x-pad/privacy.html)), and the IARC age rating.
 
 ## Cut a release
 

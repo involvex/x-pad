@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy — X-Pad</title>
+  <meta name="description" content="Privacy policy for the X-Pad text editor." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="./">
+        <span class="brand-mark">X-Pad</span>
+        <span class="brand-tag">docs</span>
+      </a>
+      <nav class="topbar-links" aria-label="External">
+        <a href="./">Manual</a>
+        <a href="https://github.com/involvex/x-pad">GitHub</a>
+      </nav>
+    </header>
+
+    <article class="page-narrow">
+      <h1>Privacy</h1>
+      <p>
+        X-Pad is a local text editor. It does not require an account and does not upload
+        the contents of your documents to involvex or any third-party service as part of
+        normal editing.
+      </p>
+      <p>
+        Preferences, recent files, session restore, and crash-recovery snapshots are stored
+        on your machine under <code class="inline">%APPDATA%\XPad\</code>. Those files stay
+        on the device unless you copy or back them up yourself.
+      </p>
+      <p>
+        Optional features that talk to the network:
+      </p>
+      <ul>
+        <li>
+          <strong>GitHub Releases updater</strong> — when enabled, X-Pad may check
+          <a href="https://github.com/involvex/x-pad/releases">github.com/involvex/x-pad</a>
+          for a newer version. Downloads start only after you confirm. Microsoft Store /
+          MSIX installs skip this path.
+        </li>
+        <li>
+          <strong>Language servers and formatters</strong> — if you configure external
+          tools, those programs run under your account and may follow their own privacy
+          practices.
+        </li>
+        <li>
+          <strong>Search Web</strong> — opens your default browser with a search for the
+          selected text; the query is handled by your browser and search provider.
+        </li>
+      </ul>
+      <p>
+        Crash logs may be written locally to <code class="inline">%APPDATA%\XPad\crash.log</code>.
+        They are not sent automatically.
+      </p>
+      <p>
+        Questions about this policy: open an issue on
+        <a href="https://github.com/involvex/x-pad">the X-Pad repository</a>.
+      </p>
+      <p class="footer" style="border: none; margin-top: 2rem; padding-top: 0;">
+        Last updated: 22 November 2026 ·
+        <a href="./">Back to the manual</a>
+      </p>
+    </article>
+  </div>
+</body>
+</html>
