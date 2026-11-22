@@ -43,6 +43,13 @@ public sealed class AppSettings
     public int MaxRecentFiles { get; set; } = 12;
     public List<string> FavoriteFiles { get; set; } = [];
     public int MaxFavoriteFiles { get; set; } = 40;
+    /// <summary>Last opened workspace folder (Open Folder).</summary>
+    public string? LastWorkspacePath { get; set; }
+    /// <summary>Directory names excluded from the file tree and disk search.</summary>
+    public List<string> WorkspaceExcludeNames { get; set; } =
+    [
+        ".git", "node_modules", "bin", "obj", ".vs"
+    ];
     public Dictionary<string, string> LanguageServers { get; set; } = new()
     {
         ["typescript"] = "typescript-language-server --stdio",

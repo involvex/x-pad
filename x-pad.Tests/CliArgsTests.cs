@@ -57,5 +57,24 @@ public class CliArgsTests
         Assert.True(CliArgs.IsHelpRequest([flag]));
         Assert.False(CliArgs.IsHelpRequest(["file.txt"]));
         Assert.Contains("Usage:", CliArgs.GetHelpText(), StringComparison.Ordinal);
+        Assert.Contains("folder", CliArgs.GetHelpText(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveWorkspacePaths_returns_existing_directories()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "xpad-ws-cli-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var paths = CliArgs.ResolveWorkspacePaths([dir, "--help"]);
+            Assert.Single(paths);
+            Assert.Equal(Path.GetFullPath(dir), paths[0], ignoreCase: OperatingSystem.IsWindows());
+            Assert.Empty(CliArgs.ResolveFilePaths([dir]));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 }

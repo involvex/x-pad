@@ -34,16 +34,48 @@ public static class CliArgs
         X-Pad - lightweight Notepad++/Atom-style editor
 
         Usage:
-          xpad [options] [file ...]
+          xpad [options] [file|folder ...]
 
         Options:
           -h, --help, /?     Show this help and exit
 
         Behavior:
           - Existing files open in tabs
+          - Existing folders open as a workspace (file tree)
           - Missing files open as empty buffers (Save creates them)
           - A second launch hands files to the running instance
         """;
+
+    /// <summary>Existing directories from args (workspace roots). Does not include files.</summary>
+    public static IReadOnlyList<string> ResolveWorkspacePaths(IEnumerable<string>? args)
+    {
+        var result = new List<string>();
+        if (args == null)
+            return result;
+
+        foreach (var raw in args)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                continue;
+
+            var arg = raw.Trim().Trim('"');
+            if (IsFlag(arg))
+                continue;
+
+            try
+            {
+                var full = Path.GetFullPath(arg);
+                if (Directory.Exists(full))
+                    result.Add(full);
+            }
+            catch
+            {
+                // Skip invalid paths
+            }
+        }
+
+        return result;
+    }
 
     public static IReadOnlyList<string> ResolveFilePaths(IEnumerable<string>? args)
     {
@@ -63,6 +95,9 @@ public static class CliArgs
             try
             {
                 var full = Path.GetFullPath(arg);
+                // Directories are workspaces, not file tabs.
+                if (Directory.Exists(full))
+                    continue;
                 // Accept existing files, or any path that looks like a file (has a name).
                 if (File.Exists(full) || LooksLikeFilePath(full))
                     result.Add(full);
