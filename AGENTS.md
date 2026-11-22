@@ -4,31 +4,48 @@
 
 x-pad is a modern cross-platform notepad built with Avalonia UI and AvaloniaEdit.
 It targets a lightweight Notepad/Notepad++/Notepad4 replacement with tabs, syntax
-highlighting (TextMate), completions, session restore, and optional LSP.
+highlighting (TextMate), completions, session restore, and optional LSP. See
+[README.md](README.md) for the user-facing overview and feature highlights.
 
 ## Useful Commands
 
 ```bash
+# Restore, build, run, test
 dotnet restore
 dotnet build
 dotnet run
 dotnet test
 dotnet run -c Release
 
-# Publish (Windows)
+# Open an existing file or create an empty buffer (Save creates the file)
+dotnet run -- path\to\file.txt
+dotnet run -- missing-new.txt
+xpad --help
+
+# Publish (Windows x64) — framework-dependent to publish/win-x64
 pwsh scripts/publish-win-x64.ps1
+# Self-contained single-file to publish/win-x64-sc
 pwsh scripts/publish-win-x64.ps1 -Mode selfcontained
 
 # Optional Open-with / SendTo helper
 pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 ```
 
+PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
+`install-open-with.ps1`, `smoke-cli.ps1`, `smoke-single-instance.ps1`.
+
 ## Technologies
 
-- **.NET 10.0**
-- **Avalonia UI 12.1.4** + Fluent theme
-- **AvaloniaEdit 12** + **AvaloniaEdit.TextMate** / **TextMateSharp.Grammars**
-- **CommunityToolkit.Mvvm 8.4.2**
+- **.NET 10.0** (`net10.0`), C# with nullable reference types enabled
+- **Avalonia UI 12.1.4** — Desktop, Fluent theme, Inter fonts
+- **AvaloniaEdit 12** (`Avalonia.AvaloniaEdit` 12.0.0) + `AvaloniaEdit.TextMate` 12.0.0
+- **TextMateSharp.Grammars 2.0.3** — bundled syntax grammars
+- **CommunityToolkit.Mvvm 8.4.2** — MVVM helpers
+- **Iciclecreek.Avalonia.Terminal 4.1.4** — embedded ConPTY terminal
+- **QuestPDF 2026.9.2** — PDF export
+- **System.Drawing.Common 9.0.4** — printing (Windows)
+- **AvaloniaUI.DiagnosticsSupport 2.2.3** — Debug builds only
+- **Tests:** xUnit 2.9.3, Microsoft.NET.Test.Sdk 17.14.1, coverlet.collector 6.0.4 (in `x-pad.Tests/`)
 
 ## Architecture
 
@@ -71,7 +88,7 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 pwsh scripts/smoke-cli.ps1
 pwsh scripts/smoke-single-instance.ps1   # skips if xpad already running
 dotnet run -- path\to\file.txt
-dotnet run -- missing-new.txt          # empty buffer, Save creates file
+dotnet run -- missing-new.txt            # empty buffer, Save creates file
 pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 ```
 
@@ -80,9 +97,26 @@ bookmarks, `Ctrl+/` comment, Save trim, Open with → X-Pad.
 
 ## Best Practices
 
-- Keep `TextDocument` as the source of truth — do not two-way bind large strings
-- Dirty state via `UndoStack.IsOriginalFile` / `MarkAsOriginalFile()`
-- File I/O goes through `FileService` so encoding round-trips stay correct
-- LSP servers are optional and configured in settings; missing servers are ignored
-- Exclude `x-pad.Tests/**` from the WinExe project globs (`DefaultItemExcludes`)
-- UI exceptions are logged to `%APPDATA%/XPad/crash.log` and handled so the process stays up
+- Keep `TextDocument` as the source of truth — do not two-way bind large strings.
+- Track dirty state via `UndoStack.IsOriginalFile` / `MarkAsOriginalFile()`.
+- Route all file I/O through `FileService` so encoding round-trips stay correct.
+- Treat LSP servers as optional and configured in settings; missing servers are ignored.
+- Keep `x-pad.Tests/**` excluded from the WinExe project globs (`DefaultItemExcludes`).
+- Log UI exceptions to `%APPDATA%/XPad/crash.log` and handle them so the process stays up.
+- Keep unit tests in `x-pad.Tests/` (xUnit) and run `dotnet test` before considering a change complete.
+
+## Guidelines
+
+- Use PowerShell-compatible commands on Windows (`Get-ChildItem`, `Remove-Item`, `Copy-Item`,
+  `Move-Item`); write files with tools rather than shell redirection when content has special characters.
+- Preserve the MVVM split: views in `Views/`, state and commands in `ViewModels/`, reusable
+  logic in `Services/`, small helpers in `Editor/`, and data types in `Models/`.
+- Keep user data under `%APPDATA%/XPad/` (`settings.json`, `session.json`); do not hardcode
+  per-user paths.
+- Keep errors non-fatal for the user: degrade gracefully (e.g., missing LSP servers) and log
+  unexpected UI failures instead of terminating the process.
+- Preserve the existing Dark / Light / System / Monokai theme support when changing the UI,
+  and prefer a dark appearance as the default.
+- Verify changes with `dotnet test` and the daily-driver smoke checklist above before calling
+  work complete.
+- Keep this file and `README.md` in sync when scripts, dependencies, or workflows change.
