@@ -157,6 +157,37 @@ public partial class DocumentEditor : UserControl
         _editor.Focus();
     }
 
+    /// <summary>
+    /// Returns the current selection (or caret) as 0-based LSP line/character bounds.
+    /// </summary>
+    public bool TryGetLspRange(out int startLine, out int startCharacter, out int endLine, out int endCharacter)
+    {
+        startLine = startCharacter = endLine = endCharacter = 0;
+        if (_editor?.Document == null)
+            return false;
+
+        var document = _editor.Document;
+        var startOffset = _editor.SelectionLength > 0
+            ? _editor.SelectionStart
+            : _editor.CaretOffset;
+        var endOffset = _editor.SelectionLength > 0
+            ? _editor.SelectionStart + _editor.SelectionLength
+            : startOffset;
+
+        startOffset = Math.Clamp(startOffset, 0, document.TextLength);
+        endOffset = Math.Clamp(endOffset, 0, document.TextLength);
+        if (endOffset < startOffset)
+            (startOffset, endOffset) = (endOffset, startOffset);
+
+        var startLoc = document.GetLocation(startOffset);
+        var endLoc = document.GetLocation(endOffset);
+        startLine = startLoc.Line - 1;
+        startCharacter = Math.Max(0, startLoc.Column - 1);
+        endLine = endLoc.Line - 1;
+        endCharacter = Math.Max(0, endLoc.Column - 1);
+        return true;
+    }
+
     public void GoToMatch(int line, int column, int length)
     {
         if (_editor?.Document == null)

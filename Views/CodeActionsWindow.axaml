@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:x_pad.Views"
+        x:Class="x_pad.Views.CodeActionsWindow"
+        Title="Code Actions"
+        Width="520"
+        Height="360"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        MinWidth="360"
+        MinHeight="240">
+    <DockPanel Margin="12">
+        <TextBlock x:Name="SummaryBox"
+                   DockPanel.Dock="Bottom"
+                   Margin="0,8,0,0"
+                   FontSize="11"
+                   Opacity="0.65"
+                   Text="Enter apply · Esc close" />
+        <ListBox x:Name="ActionsList"
+                 FontSize="12"
+                 DoubleTapped="OnListDoubleTapped">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="views:CodeActionListItem">
+                    <StackPanel Margin="2,2" Spacing="2">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Subtitle}" FontSize="11" Opacity="0.65" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

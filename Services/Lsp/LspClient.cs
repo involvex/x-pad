@@ -103,7 +103,26 @@ public sealed class LspClient : IAsyncDisposable
                     {
                         ["hierarchicalDocumentSymbolSupport"] = true
                     },
-                    ["references"] = new JsonObject()
+                    ["references"] = new JsonObject(),
+                    ["codeAction"] = new JsonObject
+                    {
+                        ["codeActionLiteralSupport"] = new JsonObject
+                        {
+                            ["codeActionKind"] = new JsonObject
+                            {
+                                ["valueSet"] = new JsonArray
+                                {
+                                    "quickfix",
+                                    "refactor",
+                                    "refactor.extract",
+                                    "refactor.inline",
+                                    "refactor.rewrite",
+                                    "source",
+                                    "source.organizeImports"
+                                }
+                            }
+                        }
+                    }
                 }
             },
             ["clientInfo"] = new JsonObject
@@ -231,6 +250,76 @@ public sealed class LspClient : IAsyncDisposable
         });
 
         return LspNavigationParser.ParseLocations(result);
+    }
+
+    public async Task<IReadOnlyList<LspCodeAction>> CodeActionsAsync(
+        string uri,
+        int startLine,
+        int startCharacter,
+        int endLine,
+        int endCharacter,
+        IReadOnlyList<LspDiagnostic>? diagnostics = null)
+    {
+        if (!_initialized)
+            return [];
+
+        var diagArray = new JsonArray();
+        if (diagnostics != null)
+        {
+            foreach (var d in diagnostics)
+            {
+                diagArray.Add(new JsonObject
+                {
+                    ["range"] = new JsonObject
+                    {
+                        ["start"] = new JsonObject
+                        {
+                            ["line"] = d.Range.Start.Line,
+                            ["character"] = d.Range.Start.Character
+                        },
+                        ["end"] = new JsonObject
+                        {
+                            ["line"] = d.Range.End.Line,
+                            ["character"] = d.Range.End.Character
+                        }
+                    },
+                    ["severity"] = d.Severity,
+                    ["message"] = d.Message,
+                    ["source"] = d.Source
+                });
+            }
+        }
+
+        var result = await RequestAsync("textDocument/codeAction", new JsonObject
+        {
+            ["textDocument"] = new JsonObject { ["uri"] = uri },
+            ["range"] = new JsonObject
+            {
+                ["start"] = new JsonObject
+                {
+                    ["line"] = startLine,
+                    ["character"] = startCharacter
+                },
+                ["end"] = new JsonObject
+                {
+                    ["line"] = endLine,
+                    ["character"] = endCharacter
+                }
+            },
+            ["context"] = new JsonObject
+            {
+                ["diagnostics"] = diagArray,
+                ["only"] = new JsonArray
+                {
+                    "quickfix",
+                    "refactor",
+                    "source",
+                    "source.organizeImports"
+                }
+            }
+        });
+
+        return LspCodeActionParser.ParseCodeActions(result);
     }
 
     private static IReadOnlyList<LspCompletionItem> ParseCompletion(JsonNode? node)

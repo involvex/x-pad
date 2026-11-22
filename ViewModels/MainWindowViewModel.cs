@@ -43,6 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _externalChangeGate;
     private int _watcherPromptGate;
     private bool _recoveryPromptScheduled;
+    private IReadOnlyList<LspDiagnostic> _selectedTabDiagnostics = [];
 
     private sealed class ClosedTabSnapshot
     {
@@ -247,7 +248,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private void OnLspDiagnostics(string uri, IReadOnlyList<Services.Lsp.LspDiagnostic> diagnostics)
+    private void OnLspDiagnostics(string uri, IReadOnlyList<LspDiagnostic> diagnostics)
     {
         Dispatcher.UIThread.Post(() =>
         {
@@ -258,6 +259,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (!string.Equals(selectedUri, uri, StringComparison.OrdinalIgnoreCase))
                 return;
 
+            _selectedTabDiagnostics = diagnostics;
             StatusText = diagnostics.Count == 0
                 ? "Ready"
                 : $"{diagnostics.Count} diagnostic(s) — {diagnostics[0].Message}";
@@ -342,6 +344,7 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSelectedTabChanged(DocumentViewModel? value)
     {
         HookSelectedTabSplit(value);
+        _selectedTabDiagnostics = [];
 
         if (value != null)
             _ = CheckExternalChangeAsync(value);
@@ -1722,6 +1725,96 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task ShowCodeActions()
+    {
+        if (SelectedTab?.FilePath == null)
+        {
+            StatusText = "Save the file to use Code Actions";
+            return;
+        }
+
+        if (SelectedTab.IsLargeFile)
+        {
+            StatusText = "Code Actions disabled for large files";
+            return;
+        }
+
+        if (SelectedTab.IsReadOnly)
+        {
+            StatusText = "Code Actions blocked — buffer is read-only";
+            return;
+        }
+
+        var owner = GetMainWindow();
+        if (owner == null)
+            return;
+
+        var editor = GetSelectedEditor();
+        if (editor == null ||
+            !editor.TryGetLspRange(out var startLine, out var startCharacter, out var endLine, out var endCharacter))
+        {
+            StatusText = "No editor selection for Code Actions";
+            return;
+        }
+
+        var probe = LanguageHelper.GetProbePath(SelectedTab.FilePath, SelectedTab.LanguageOverrideExtension);
+        var languageId = LanguageHelper.GetLspLanguageId(probe);
+        var client = await _lspManager.GetClientAsync(languageId, SelectedTab.FilePath);
+        if (client == null)
+        {
+            StatusText = "No language server for this file";
+            return;
+        }
+
+        var uri = new Uri(Path.GetFullPath(SelectedTab.FilePath)).AbsoluteUri;
+        StatusText = "Fetching code actions…";
+        var actions = await client.CodeActionsAsync(
+            uri,
+            startLine,
+            startCharacter,
+            endLine,
+            endCharacter,
+            _selectedTabDiagnostics);
+
+        if (actions.Count == 0)
+        {
+            StatusText = "No code actions";
+            return;
+        }
+
+        var dialog = new CodeActionsWindow(actions);
+        var picked = await dialog.ShowDialog<LspCodeAction?>(owner);
+        if (picked?.Edit == null)
+        {
+            if (picked is { HasCommandOnly: true })
+                StatusText = "Command-only code actions are not supported yet";
+            return;
+        }
+
+        var result = await LspWorkspaceEditApplier.ApplyAsync(
+            picked.Edit,
+            path =>
+            {
+                var tab = Tabs.FirstOrDefault(t =>
+                    t.FilePath != null &&
+                    string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase));
+                return tab?.Document;
+            },
+            _fileService,
+            path => OpenFileFromPath(path));
+
+        if (result.Errors.Count > 0)
+        {
+            StatusText = result.Errors[0];
+            return;
+        }
+
+        StatusText = result.DocumentsTouched == 1
+            ? $"Applied: {picked.Title}"
+            : $"Applied: {picked.Title} ({result.DocumentsTouched} files)";
+    }
+
+    [RelayCommand]
     private void ToggleDarkMode() => SetTheme("Dark");
 
     [RelayCommand]
@@ -2348,6 +2441,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Go to Definition", "F12", "Edit", () => GoToDefinition()),
             Entry("Edit: Find References", "Shift+F12", "Edit", () => FindReferences()),
             Entry("View: Document Outline…", "Ctrl+Shift+.", "View", () => ShowDocumentOutline()),
+            Entry("Edit: Code Actions…", "Ctrl+.", "Edit", () => ShowCodeActions()),
             Entry("Edit: Toggle Line Comment", "Ctrl+/", "Edit", () => { ToggleLineComment(); return Task.CompletedTask; }),
             Entry("Edit: Insert Date/Time", "F5", "Edit", () => { InsertDateTime(); return Task.CompletedTask; }),
             Entry("Edit: Duplicate Line", "Ctrl+D", "Edit", () => { DuplicateLine(); return Task.CompletedTask; }),
