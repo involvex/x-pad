@@ -65,11 +65,23 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private bool splitVertical = true;
 
+    [ObservableProperty]
+    private bool isReadOnly;
+
+    [ObservableProperty]
+    private bool isLargeFile;
+
     public LineEndingKind LineEndingKind { get; private set; } = LineEndingKind.Lf;
     public Encoding TextEncoding { get; set; } = FileService.CreateUtf8(false);
     public bool HasBom { get; set; }
     public DateTime? LastWriteTimeUtc { get; set; }
     public int LspVersion { get; set; } = 1;
+
+    /// <summary>Original on-disk bytes for re-decode; null for untitled buffers.</summary>
+    public byte[]? SourceBytes { get; set; }
+
+    /// <summary>Stable id used by crash recovery snapshots.</summary>
+    public string RecoveryId { get; set; } = Guid.NewGuid().ToString("N");
 
     /// <summary>
     /// When set (e.g. ".cs"), TextMate grammar uses this extension instead of the file path.
@@ -113,9 +125,24 @@ public partial class DocumentViewModel : ViewModelBase
         LineEndingKind = snapshot.LineEnding;
         LineEnding = snapshot.LineEnding.ToDisplay();
         LastWriteTimeUtc = snapshot.LastWriteTimeUtc;
+        SourceBytes = snapshot.SourceBytes;
+        IsReadOnly = snapshot.IsReadOnly;
+        IsLargeFile = snapshot.IsLargeFile;
         Text = snapshot.Text;
         SetInsertSpaces(x_pad.Editor.IndentStyle.ResolveInsertSpaces(snapshot.Text, preferInsertSpaces));
         Title = _baseTitle;
+        IsDirty = false;
+    }
+
+    /// <summary>Replaces buffer text from a re-decode without treating it as a user edit.</summary>
+    public void ApplyDecodedText(string text, Encoding encoding, bool hasBom, string encodingName)
+    {
+        TextEncoding = encoding;
+        HasBom = hasBom;
+        Encoding = encodingName;
+        LineEndingKind = LineEndingKindExtensions.Detect(text);
+        LineEnding = LineEndingKind.ToDisplay();
+        Text = text;
         IsDirty = false;
     }
 
@@ -148,6 +175,9 @@ public partial class DocumentViewModel : ViewModelBase
         LineEnding = "LF";
         Language = "Plain Text";
         LanguageOverrideExtension = null;
+        SourceBytes = null;
+        IsReadOnly = false;
+        IsLargeFile = false;
         SetInsertSpaces(insertSpaces);
         Text = "";
         IsDirty = false;
@@ -168,6 +198,9 @@ public partial class DocumentViewModel : ViewModelBase
         LineEnding = "LF";
         LastWriteTimeUtc = null;
         LanguageOverrideExtension = null;
+        SourceBytes = null;
+        IsReadOnly = false;
+        IsLargeFile = false;
         SetInsertSpaces(insertSpaces);
         Text = "";
         IsDirty = false;

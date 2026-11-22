@@ -3,23 +3,48 @@
         xmlns:views="using:x_pad.Views"
         x:Class="x_pad.Views.FindInOpenTabsWindow"
         Title="Find in Open Tabs"
-        Width="640"
-        Height="460"
+        Width="680"
+        Height="520"
         WindowStartupLocation="CenterOwner"
         CanResize="True"
-        MinWidth="480"
-        MinHeight="320">
+        MinWidth="520"
+        MinHeight="360">
     <DockPanel Margin="12">
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
-            <TextBox x:Name="QueryBox"
-                     Grid.Column="0"
-                     PlaceholderText="Search open tabs…"
-                     FontSize="14" />
-            <CheckBox x:Name="MatchCaseBox"
-                      Grid.Column="1"
-                      Content="Match case"
-                      VerticalAlignment="Center" />
-        </Grid>
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <TextBlock Grid.Column="0"
+                           Text="Find"
+                           VerticalAlignment="Center"
+                           Width="56" />
+                <TextBox x:Name="QueryBox"
+                         Grid.Column="1"
+                         PlaceholderText="Search open tabs…"
+                         FontSize="14" />
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                <TextBlock Grid.Column="0"
+                           Text="Replace"
+                           VerticalAlignment="Center"
+                           Width="56" />
+                <TextBox x:Name="ReplaceBox"
+                         Grid.Column="1"
+                         PlaceholderText="Replace with…"
+                         FontSize="14" />
+                <Button x:Name="ReplaceButton"
+                        Grid.Column="2"
+                        Content="Replace"
+                        MinWidth="80" />
+                <Button x:Name="ReplaceAllButton"
+                        Grid.Column="3"
+                        Content="Replace All"
+                        MinWidth="96" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <CheckBox x:Name="MatchCaseBox" Content="Match case" />
+                <CheckBox x:Name="WholeWordBox" Content="Whole word" />
+                <CheckBox x:Name="RegexBox" Content="Regex" />
+            </StackPanel>
+        </StackPanel>
         <TextBlock x:Name="SummaryBox"
                    DockPanel.Dock="Bottom"
                    Margin="0,8,0,0"

@@ -40,4 +40,24 @@ public class LanguageHelperTests
         Assert.Equal("#", LanguageHelper.GetLineCommentPrefix("a.py"));
         Assert.Equal("--", LanguageHelper.GetLineCommentPrefix("a.sql"));
     }
+
+    [Fact]
+    public void GetLineCommentPrefix_UsesLanguageOverride()
+    {
+        Assert.Equal("#", LanguageHelper.GetLineCommentPrefix("a.cs", ".py"));
+        Assert.Null(LanguageHelper.GetLineCommentPrefix("a.cs", ".html"));
+    }
+
+    [Fact]
+    public void GetBlockCommentDelimiters_ForHtmlAndXml()
+    {
+        var html = LanguageHelper.GetBlockCommentDelimiters("a.html");
+        Assert.NotNull(html);
+        Assert.Equal(("<!--", "-->"), html);
+
+        var fromOverride = LanguageHelper.GetBlockCommentDelimiters("a.cs", ".xml");
+        Assert.Equal(("<!--", "-->"), fromOverride);
+
+        Assert.Null(LanguageHelper.GetBlockCommentDelimiters("a.cs"));
+    }
 }

@@ -416,8 +416,17 @@ public partial class DocumentEditor : UserControl
         _editor.Document = _document.Document;
         if (_editorSecondary != null)
             _editorSecondary.Document = _document.Document;
-        _foldingManager = FoldingManager.Install(_editor.TextArea);
-        _foldingDocument = _editor.Document;
+        ApplyReadOnlyState();
+        if (_document.IsLargeFile)
+        {
+            UninstallFolding();
+        }
+        else
+        {
+            _foldingManager = FoldingManager.Install(_editor.TextArea);
+            _foldingDocument = _editor.Document;
+        }
+
         InstallDiagnostics();
         InstallIndentGuides();
         InstallBrackets();
@@ -428,12 +437,24 @@ public partial class DocumentEditor : UserControl
         ApplyGrammar();
         ApplySettings();
         ApplySplitLayout();
-        UpdateFolding();
+        if (!_document.IsLargeFile)
+            UpdateFolding();
         UpdateBracketHighlight();
         UpdateWordHighlight();
         ApplyPendingCaretRestore();
         UpdateCaretStatus();
-        _ = OpenLspDocumentAsync();
+        if (!_document.IsLargeFile)
+            _ = OpenLspDocumentAsync();
+    }
+
+    private void ApplyReadOnlyState()
+    {
+        if (_editor == null || _document == null)
+            return;
+
+        _editor.IsReadOnly = _document.IsReadOnly;
+        if (_editorSecondary != null)
+            _editorSecondary.IsReadOnly = _document.IsReadOnly;
     }
 
     public void RestorePendingCaret() => ApplyPendingCaretRestore();
@@ -646,6 +667,21 @@ public partial class DocumentEditor : UserControl
 
         if (e.PropertyName is nameof(DocumentViewModel.IsSplit) or nameof(DocumentViewModel.SplitVertical))
             ApplySplitLayout();
+
+        if (e.PropertyName == nameof(DocumentViewModel.IsReadOnly))
+            ApplyReadOnlyState();
+
+        if (e.PropertyName == nameof(DocumentViewModel.IsLargeFile) && _document != null)
+        {
+            if (_document.IsLargeFile)
+                UninstallFolding();
+            else if (_foldingManager == null && _editor != null)
+            {
+                _foldingManager = FoldingManager.Install(_editor.TextArea);
+                _foldingDocument = _editor.Document;
+                UpdateFolding();
+            }
+        }
 
         if (e.PropertyName is nameof(DocumentViewModel.InsertSpaces) or nameof(DocumentViewModel.IndentStyle))
             ApplySettings();
@@ -1287,10 +1323,21 @@ public partial class DocumentEditor : UserControl
 
     public void ToggleLineComment()
     {
-        if (_editor?.Document == null)
+        if (_editor?.Document == null || _document?.IsReadOnly == true)
             return;
 
-        var prefix = LanguageHelper.GetLineCommentPrefix(_document?.FilePath) ?? "//";
+        var block = LanguageHelper.GetBlockCommentDelimiters(
+            _document?.FilePath,
+            _document?.LanguageOverrideExtension);
+        if (block != null)
+        {
+            ToggleBlockComment(block.Value.Open, block.Value.Close);
+            return;
+        }
+
+        var prefix = LanguageHelper.GetLineCommentPrefix(
+            _document?.FilePath,
+            _document?.LanguageOverrideExtension) ?? "//";
         var document = _editor.Document;
         var selection = _editor.TextArea.Selection;
         int startLine;
@@ -1343,6 +1390,54 @@ public partial class DocumentEditor : UserControl
                     document.Insert(line.Offset + indentLen, prefix);
                 }
             }
+        }
+
+        _editor.Focus();
+    }
+
+    private void ToggleBlockComment(string open, string close)
+    {
+        if (_editor?.Document == null)
+            return;
+
+        var document = _editor.Document;
+        var selection = _editor.TextArea.Selection;
+        int startOffset;
+        int endOffset;
+
+        if (selection.IsEmpty)
+        {
+            var line = document.GetLineByOffset(_editor.CaretOffset);
+            startOffset = line.Offset;
+            endOffset = line.Offset + line.Length;
+        }
+        else
+        {
+            var seg = selection.SurroundingSegment;
+            if (seg == null)
+                return;
+            startOffset = seg.Offset;
+            endOffset = seg.EndOffset;
+        }
+
+        var length = Math.Max(0, endOffset - startOffset);
+        var text = document.GetText(startOffset, length);
+        var trimmedStart = text.TrimStart();
+        var leading = text.Length - trimmedStart.Length;
+        var trimmed = trimmedStart.TrimEnd();
+        var trailing = trimmedStart.Length - trimmed.Length;
+
+        if (trimmed.StartsWith(open, StringComparison.Ordinal) &&
+            trimmed.EndsWith(close, StringComparison.Ordinal) &&
+            trimmed.Length >= open.Length + close.Length)
+        {
+            var inner = trimmed[open.Length..^close.Length];
+            var replacement = text[..leading] + inner + text[(text.Length - trailing)..];
+            document.Replace(startOffset, length, replacement);
+        }
+        else
+        {
+            document.Replace(startOffset, length, open + text + close);
         }
 
         _editor.Focus();
@@ -1508,7 +1603,7 @@ public partial class DocumentEditor : UserControl
 
     private void ShowWordCompletion(bool force)
     {
-        if (_editor == null)
+        if (_editor == null || _document?.IsLargeFile == true || _document?.IsReadOnly == true)
             return;
 
         var word = GetWordBeforeCaret();
@@ -1529,7 +1624,7 @@ public partial class DocumentEditor : UserControl
 
     private async Task MaybeShowLspCompletionAsync(char ch)
     {
-        if (_editor == null || _document == null || _lsp == null)
+        if (_editor == null || _document == null || _lsp == null || _document.IsLargeFile)
             return;
         if (!char.IsLetterOrDigit(ch) && ch is not ('.' or '_'))
             return;
@@ -1709,7 +1804,7 @@ public partial class DocumentEditor : UserControl
 
     private void UpdateFolding()
     {
-        if (_editor?.Document == null)
+        if (_editor?.Document == null || _document?.IsLargeFile == true)
             return;
 
         // FoldingElementGenerator throws "Invalid document" when the manager
@@ -1741,7 +1836,8 @@ public partial class DocumentEditor : UserControl
 
     private async Task OpenLspDocumentAsync()
     {
-        if (_document == null || _lsp == null || string.IsNullOrWhiteSpace(_document.FilePath))
+        if (_document == null || _lsp == null || string.IsNullOrWhiteSpace(_document.FilePath) ||
+            _document.IsLargeFile)
             return;
 
         var languageId = LanguageHelper.GetLspLanguageId(_document.FilePath);
@@ -1759,7 +1855,7 @@ public partial class DocumentEditor : UserControl
     private async Task NotifyLspChangeAsync(int version)
     {
         await Task.Delay(300);
-        if (version != _changeVersion || _document == null || _lsp == null)
+        if (version != _changeVersion || _document == null || _lsp == null || _document.IsLargeFile)
             return;
 
         var languageId = LanguageHelper.GetLspLanguageId(_document.FilePath);
