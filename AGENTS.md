@@ -45,7 +45,7 @@ pwsh scripts/release.ps1 -DryRun
 
 PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 `install-open-with.ps1`, `smoke-cli.ps1`, `smoke-single-instance.ps1`,
-`release.ps1`, `xpad.js` (Bun/npm bin launcher).
+`smoke-workspace.ps1`, `release.ps1`, `xpad.js` (Bun/npm bin launcher).
 
 ## Technologies
 
@@ -115,14 +115,16 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 ```bash
 pwsh scripts/smoke-cli.ps1
 pwsh scripts/smoke-single-instance.ps1   # skips if xpad already running
+pwsh scripts/smoke-workspace.ps1         # Open Folder / disk search unit smoke
 dotnet run -- path\to\file.txt
 dotnet run -- missing-new.txt            # empty buffer, Save creates file
+dotnet run -- path\to\folder             # open workspace folder
 pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 ```
 
 Manual: tabs + dirty close, dark theme, syntax highlight, Find/Replace, find in open tabs
-(replace), encoding re-decode, read-only, completions, bookmarks, `Ctrl+/` comment, Save trim,
-crash recovery after kill, Open with → X-Pad.
+(replace), Open Folder + Find in Folder, encoding re-decode, read-only, completions, bookmarks,
+`Ctrl+/` comment, Save trim, crash recovery after kill, Open with → X-Pad.
 
 ## Best Practices
 
