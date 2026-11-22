@@ -48,6 +48,7 @@ CodeCoverage/
 crash-stderr.txt
 crash-stdout.txt
 *.zip
+Assets/xpad-icon-source.jpg
 
 # MSBuild Binary and Structured Log
 *.binlog
