@@ -65,7 +65,8 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - **Views/** — MainWindow, DocumentEditor (AvaloniaEdit host), Preferences (sidebar pages), dialogs
 - **ViewModels/** — MainWindowViewModel, DocumentViewModel (`TextDocument` owned per tab),
   PreferencesViewModel
-- **Services/** — FileService (encoding/BOM/line endings), SessionService, SettingsService,
+- **Services/** — FileService (encoding/BOM/line endings + re-decode), SessionService,
+  SettingsService, RecoveryService, OpenFileWatcher, TabSearch, LargeFilePolicy,
   FormatService / FormatCommandHelper, EditorThemeService, SingleInstanceService,
   UpdateService (GitHub Releases), LanguageHelper, Lsp/*
 - **Editor/** — completion helpers, IndentStyle detection
@@ -75,19 +76,23 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 
 - Tabbed editing with dirty close prompts, tab × / middle-click / Ctrl+Tab / move tab / reopen closed (`Ctrl+Shift+T`)
 - AvaloniaEdit: line numbers, TextMate highlighting, SearchPanel, folding (fold/unfold all), zoom, indent guides, font family prefs
-- Status-bar language override (TextMate) + encoding / EOL / Tabs↔Spaces cycle; external-change prompt on tab switch and window focus
+- Status-bar language override (TextMate) + encoding / EOL / Tabs↔Spaces cycle; external-change prompt on focus, tab switch, and file watcher
 - Per-buffer indent: detect tabs vs spaces from leading whitespace; Tab + auto-indent follow the buffer (prefs default for new/empty)
-- Bracket match/jump, word highlight, multi-occurrence edit, select line (`Ctrl+L`), auto-indent, line comments
+- Per-tab word wrap (`Alt+Z`); Preferences Word Wrap is the default for new tabs only
+- Bracket match/jump, word highlight, multi-occurrence edit, select line (`Ctrl+L`), auto-indent, line/block comments (follow language override; HTML/XML `<!-- -->`)
 - Bookmarks (`Ctrl+F2` / `F2` / `Shift+F2`), rectangular selection (Alt+drag)
 - Command palette (`Ctrl+Shift+P`) for actions + recent files
 - Quick Open (`Ctrl+E`) for open tabs + recent files
 - Session restore with selected tab + caret line/column
+- Crash recovery for dirty/untitled buffers (`%APPDATA%/XPad/recovery/`); clean exit clears snapshots
 - Case/sort/join/trim + remove empty/duplicate lines; insert spaces vs tabs pref; trim + final newline on save; optional `.bak` backup on save
 - External formatter (`FormatCommand` with `$FILE`, format on save / `Shift+Alt+F` Format Document, optional extension filter)
-- Find in open tabs (`Ctrl+Shift+F`)
+- Find / replace in open tabs (`Ctrl+Shift+F`): match case, whole word, regex, replace / replace all (500-hit cap)
 - Optional autosave (prefs: interval seconds; 0 = off)
 - Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles)
-- Encoding + BOM + CRLF/LF/CR preserved on save (status bar cycle)
+- Encoding + BOM + CRLF/LF/CR preserved on save; re-decode from kept source bytes (UTF-8 / BOM / UTF-16 LE+BE / Latin-1)
+- Read-only mode (from file attributes + File menu toggle); status-bar `RO` indicator
+- Large-file guard (above 8 MB): plain open, skip folding / word completion / full-text LSP
 - Duplicate/move line, show whitespace, print (Windows), always on top
 - Session restore (`%APPDATA%/XPad/session.json`)
 - Settings / Preferences sidebar (`%APPDATA%/XPad/settings.json`) — Editor / Saving / Appearance / Formatter / LSP / Updates
@@ -112,8 +117,9 @@ dotnet run -- missing-new.txt            # empty buffer, Save creates file
 pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 ```
 
-Manual: tabs + dirty close, dark theme, syntax highlight, Find/Replace, completions,
-bookmarks, `Ctrl+/` comment, Save trim, Open with → X-Pad.
+Manual: tabs + dirty close, dark theme, syntax highlight, Find/Replace, find in open tabs
+(replace), encoding re-decode, read-only, completions, bookmarks, `Ctrl+/` comment, Save trim,
+crash recovery after kill, Open with → X-Pad.
 
 ## Best Practices
 
@@ -131,8 +137,8 @@ bookmarks, `Ctrl+/` comment, Save trim, Open with → X-Pad.
   `Move-Item`); write files with tools rather than shell redirection when content has special characters.
 - Preserve the MVVM split: views in `Views/`, state and commands in `ViewModels/`, reusable
   logic in `Services/`, small helpers in `Editor/`, and data types in `Models/`.
-- Keep user data under `%APPDATA%/XPad/` (`settings.json`, `session.json`); do not hardcode
-  per-user paths.
+- Keep user data under `%APPDATA%/XPad/` (`settings.json`, `session.json`, `recovery/`); do not
+  hardcode per-user paths.
 - Keep errors non-fatal for the user: degrade gracefully (e.g., missing LSP servers) and log
   unexpected UI failures instead of terminating the process.
 - Preserve the existing Dark / Light / System / Monokai theme support when changing the UI,

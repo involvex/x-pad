@@ -5,6 +5,8 @@
 ## 0.3.0 - 2026-11-22
 
 - Add search, recovery, and file-fidelity improvements for 0.3.
+- Find/replace in open tabs (regex, whole word, replace all); encoding re-decode incl. UTF-16 BE
+- Read-only buffers, crash recovery, live file watching, 8 MB large-file guard, per-tab word wrap
 ## 0.2.4 - 2026-11-22
 
 - test(ClosedTabSnapshot): replace hardcoded Windows path with temp path

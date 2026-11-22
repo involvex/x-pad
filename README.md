@@ -8,13 +8,17 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 
 - Tabs, dirty close prompts, session restore (files + caret)
 - MIT-friendly TextMate syntax highlighting + dark / light / Monokai themes
-- Find / replace, find in open tabs, bookmarks, bracket match, multi-occurrence edit
+- Find / replace, find/replace in open tabs (regex, whole word), bookmarks, bracket match, multi-occurrence edit
 - Completions + optional stdio LSP
-- Encoding / BOM / line endings preserved on save
+- Encoding / BOM / line endings preserved on save; re-decode from disk bytes (incl. UTF-16 BE)
+- Read-only buffers, crash recovery for dirty/untitled tabs, live external-change watching
+- Large-file guard (8 MB+): open as plain text without folding / word completion / LSP
+- Per-tab word wrap; per-buffer Tabs / Spaces (detected from the file; status-bar toggle)
 - CLI open-or-create, single-instance file handoff, Send To / Open With helpers
 - Backup on save (`.bak`), optional autosave
-- Per-buffer Tabs / Spaces (detected from the file; status-bar toggle)
 - Optional external formatter (`$FILE` command, format on save)
+
+Settings and recovery live under `%APPDATA%\XPad\` (`settings.json`, `session.json`, `recovery/`).
 
 ## Run
 
@@ -72,6 +76,7 @@ Stored under `%APPDATA%\XPad\`:
 
 - `settings.json` — editor prefs, LSP commands, recent files, update prefs
 - `session.json` — last open files + caret positions
+- `recovery/` — dirty/untitled buffer snapshots (cleared on clean exit)
 
 Preferences (`Ctrl+,`) use a sidebar: Editor, Saving, Appearance, Formatter, Language servers, Updates.
 
