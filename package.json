@@ -2,7 +2,7 @@
   "name": "xpad",
   "author": "involvex",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Launcher for the X-Pad Avalonia notepad (Release build)",
   "scripts": {
     "build": "dotnet build -c release",
