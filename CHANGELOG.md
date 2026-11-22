@@ -2,6 +2,13 @@
 
 
 
+
+## 0.4.0 - 2026-11-22
+
+- test: add workspace/disk-search smoke script
+- feat(workspace): Open Folder, explorer tree, and Find in Folder
+- feat(workspace): add WorkspaceService, DiskSearch, and folder CLI args
+- Document 0.3 features and approve the 0.4 workspace sketch.
 ## 0.3.0 - 2026-11-22
 
 - Add search, recovery, and file-fidelity improvements for 0.3.
