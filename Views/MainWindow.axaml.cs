@@ -49,6 +49,7 @@ public partial class MainWindow : Window
         {
             // Avoid staying as a minimized taskbar ghost when tray owns the surface.
             WindowState = WindowState.Normal;
+            ShowInTaskbar = false;
             Hide();
         }
         finally

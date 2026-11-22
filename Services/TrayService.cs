@@ -13,6 +13,7 @@ namespace x_pad.Services;
 public sealed class TrayService : IDisposable
 {
     private readonly TrayIcon _icon;
+    private readonly TrayIcons _icons;
     private readonly NativeMenuItem _recentRoot;
     private MainWindowViewModel? _vm;
     private bool _disposed;
@@ -42,6 +43,11 @@ public sealed class TrayService : IDisposable
             Menu = menu,
             Command = new SimpleCommand(ShowMainWindow)
         };
+
+        // Avalonia only shows the icon after it is attached to Application.Current.
+        _icons = new TrayIcons { _icon };
+        if (Application.Current is { } app)
+            TrayIcon.SetIcons(app, _icons);
     }
 
     public void Attach(MainWindowViewModel vm)
@@ -91,6 +97,7 @@ public sealed class TrayService : IDisposable
         if (desktop.MainWindow is not Window window)
             return;
 
+        window.ShowInTaskbar = true;
         window.Show();
         if (window.WindowState == WindowState.Minimized)
             window.WindowState = WindowState.Normal;
@@ -110,6 +117,11 @@ public sealed class TrayService : IDisposable
         _disposed = true;
         if (_vm != null)
             _vm.RecentFilesChanged -= OnRecentChanged;
+
+        if (Application.Current is { } app)
+            TrayIcon.SetIcons(app, new TrayIcons());
+
+        _icon.IsVisible = false;
         _icon.Dispose();
     }
 
