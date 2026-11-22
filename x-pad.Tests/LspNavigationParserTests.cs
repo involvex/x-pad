@@ -53,4 +53,19 @@ public class LspNavigationParserTests
         Assert.NotNull(path);
         Assert.Contains("App.cs", path, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void ParseLocations_references_array()
+    {
+        var json = JsonNode.Parse("""
+            [
+              {"uri":"file:///C:/src/a.ts","range":{"start":{"line":1,"character":0},"end":{"line":1,"character":3}}},
+              {"uri":"file:///C:/src/b.ts","range":{"start":{"line":8,"character":4},"end":{"line":8,"character":7}}}
+            ]
+            """);
+        var locs = LspNavigationParser.ParseLocations(json);
+        Assert.Equal(2, locs.Count);
+        Assert.Equal(8, locs[1].Line);
+        Assert.Equal(4, locs[1].Character);
+    }
 }

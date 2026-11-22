@@ -1606,18 +1606,80 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var target = locations[0];
-        var path = LspNavigationParser.TryUriToLocalPath(target.Uri);
-        if (path == null || !File.Exists(path))
-        {
+        if (!await JumpToLspLocationAsync(locations[0], "Definition"))
             StatusText = "Definition target not on disk";
+    }
+
+    [RelayCommand]
+    private async Task FindReferences()
+    {
+        if (SelectedTab?.FilePath == null)
+        {
+            StatusText = "Save the file to use Find References";
             return;
         }
 
+        if (SelectedTab.IsLargeFile)
+        {
+            StatusText = "Find References disabled for large files";
+            return;
+        }
+
+        var owner = GetMainWindow();
+        if (owner == null)
+            return;
+
+        var probe = LanguageHelper.GetProbePath(SelectedTab.FilePath, SelectedTab.LanguageOverrideExtension);
+        var languageId = LanguageHelper.GetLspLanguageId(probe);
+        var client = await _lspManager.GetClientAsync(languageId, SelectedTab.FilePath);
+        if (client == null)
+        {
+            StatusText = "No language server for this file";
+            return;
+        }
+
+        var uri = new Uri(Path.GetFullPath(SelectedTab.FilePath)).AbsoluteUri;
+        var locations = await client.ReferencesAsync(
+            uri,
+            Math.Max(0, SelectedTab.LineNumber - 1),
+            Math.Max(0, SelectedTab.ColumnNumber - 1));
+
+        if (locations.Count == 0)
+        {
+            StatusText = "No references found";
+            return;
+        }
+
+        if (locations.Count == 1)
+        {
+            if (!await JumpToLspLocationAsync(locations[0], "Reference"))
+                StatusText = "Reference target not on disk";
+            return;
+        }
+
+        var dialog = new FindReferencesWindow(locations);
+        var hit = await dialog.ShowDialog<ReferenceHit?>(owner);
+        if (hit == null)
+            return;
+
+        if (!await JumpToLspLocationAsync(hit.Location, "Reference"))
+            StatusText = "Reference target not on disk";
+    }
+
+    private async Task<bool> JumpToLspLocationAsync(LspLocation target, string label)
+    {
+        var path = LspNavigationParser.TryUriToLocalPath(target.Uri);
+        if (path == null || !File.Exists(path))
+            return false;
+
         await OpenFileFromPath(path, target.Line + 1, target.Character + 1);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        GetSelectedEditor()?.GoToMatch(target.Line + 1, target.Character + 1, Math.Max(1, target.EndCharacter - target.Character));
-        StatusText = $"Definition: {Path.GetFileName(path)}:{target.Line + 1}";
+        GetSelectedEditor()?.GoToMatch(
+            target.Line + 1,
+            target.Character + 1,
+            Math.Max(1, target.EndCharacter - target.Character));
+        StatusText = $"{label}: {Path.GetFileName(path)}:{target.Line + 1}";
+        return true;
     }
 
     [RelayCommand]
@@ -2284,6 +2346,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Search Web", null, "Edit", () => { SearchWeb(); return Task.CompletedTask; }),
             Entry("Edit: Go to Line…", "Ctrl+G", "Edit", () => GoToLine()),
             Entry("Edit: Go to Definition", "F12", "Edit", () => GoToDefinition()),
+            Entry("Edit: Find References", "Shift+F12", "Edit", () => FindReferences()),
             Entry("View: Document Outline…", "Ctrl+Shift+.", "View", () => ShowDocumentOutline()),
             Entry("Edit: Toggle Line Comment", "Ctrl+/", "Edit", () => { ToggleLineComment(); return Task.CompletedTask; }),
             Entry("Edit: Insert Date/Time", "F5", "Edit", () => { InsertDateTime(); return Task.CompletedTask; }),

@@ -102,13 +102,14 @@ public sealed class LspClient : IAsyncDisposable
                     ["documentSymbol"] = new JsonObject
                     {
                         ["hierarchicalDocumentSymbolSupport"] = true
-                    }
+                    },
+                    ["references"] = new JsonObject()
                 }
             },
             ["clientInfo"] = new JsonObject
             {
                 ["name"] = "x-pad",
-                ["version"] = "0.4.0"
+                ["version"] = "0.5.0"
             }
         };
 
@@ -211,6 +212,25 @@ public sealed class LspClient : IAsyncDisposable
         });
 
         return LspNavigationParser.ParseDocumentSymbols(result);
+    }
+
+    public async Task<IReadOnlyList<LspLocation>> ReferencesAsync(
+        string uri,
+        int line,
+        int character,
+        bool includeDeclaration = true)
+    {
+        if (!_initialized)
+            return [];
+
+        var result = await RequestAsync("textDocument/references", new JsonObject
+        {
+            ["textDocument"] = new JsonObject { ["uri"] = uri },
+            ["position"] = new JsonObject { ["line"] = line, ["character"] = character },
+            ["context"] = new JsonObject { ["includeDeclaration"] = includeDeclaration }
+        });
+
+        return LspNavigationParser.ParseLocations(result);
     }
 
     private static IReadOnlyList<LspCompletionItem> ParseCompletion(JsonNode? node)

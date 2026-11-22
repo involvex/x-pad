@@ -92,7 +92,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Find / replace in open tabs (`Ctrl+Shift+F`): match case, whole word, regex, replace / replace all (500-hit cap)
 - Open Folder (`Ctrl+Shift+O`) + explorer sidebar; find/replace in folder (`Ctrl+Shift+H`); excludes `.git` / `node_modules` / `bin` / `obj` / `.vs`; LSP `rootUri` follows the workspace folder
 - Optional autosave (prefs: interval seconds; 0 = off)
-- Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles; F12 definition; Ctrl+Shift+. outline)
+- Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles; F12 definition; Shift+F12 references; Ctrl+Shift+. outline)
 - Encoding + BOM + CRLF/LF/CR preserved on save; re-decode from kept source bytes (UTF-8 / BOM / UTF-16 LE+BE / Latin-1)
 - Read-only mode (from file attributes + File menu toggle); status-bar `RO` indicator
 - Large-file guard (above 8 MB): plain open, skip folding / word completion / full-text LSP
