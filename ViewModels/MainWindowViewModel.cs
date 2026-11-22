@@ -2653,6 +2653,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task CheckForUpdatesAsync(bool interactive)
     {
+        // MSIX / Store installs are updated by the Store; the package directory is immutable.
+        if (PackageIdentity.IsPackaged())
+        {
+            if (interactive)
+                StatusText = "This install is updated by the Microsoft Store.";
+            return;
+        }
+
         if (!interactive)
         {
             if (!ShouldRunStartupUpdateCheck())

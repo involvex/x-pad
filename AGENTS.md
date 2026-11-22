@@ -35,6 +35,14 @@ pwsh scripts/publish-win-x64.ps1 -Mode selfcontained
 # Optional Open-with / SendTo helper
 pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 
+# Microsoft Store MSIX (self-contained win-x64 folder layout → .msix)
+# Needs Windows SDK (makeappx). Defaults to XPad.Dev for local -Install sideload.
+pwsh scripts/publish-msix.ps1 -Install
+pwsh scripts/publish-msix.ps1 `
+  -PackageName "<Partner Center identity name>" `
+  -Publisher "<CN=...>" `
+  -PublisherDisplayName "<publisher display name>"
+
 # Cut a release (patch bump default): bump csproj/package.json, CHANGELOG, tag, push
 # Tag push triggers .github/workflows/release.yml (artifacts + GitHub Release)
 pwsh scripts/release.ps1
@@ -44,8 +52,10 @@ pwsh scripts/release.ps1 -DryRun
 ```
 
 PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
-`install-open-with.ps1`, `smoke-cli.ps1`, `smoke-single-instance.ps1`,
-`smoke-workspace.ps1`, `release.ps1`, `xpad.js` (Bun/npm bin launcher).
+`publish-msix.ps1`, `install-open-with.ps1`, `smoke-cli.ps1`,
+`smoke-single-instance.ps1`, `smoke-workspace.ps1`, `release.ps1`,
+`xpad.js` (Bun/npm bin launcher). MSIX manifest template:
+`packaging/windows/AppxManifest.xml`.
 
 ## Technologies
 
@@ -100,7 +110,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Session restore (`%APPDATA%/XPad/session.json`)
 - Settings / Preferences sidebar (`%APPDATA%/XPad/settings.json`) — Editor / Saving / Appearance / Formatter / LSP / Updates
 - View menu: checkable toggles, grouped Split / Zoom / Tabs / Folding / Bookmarks / Theme; Encoding under File; Edit → Transform submenu
-- GitHub Releases updater (`Help → Check for Updates`, optional startup check); publish writes `xpad.install.json` for asset matching
+- GitHub Releases updater (`Help → Check for Updates`, optional startup check); publish writes `xpad.install.json` for asset matching; MSIX/Store installs skip GitHub updates (`PackageIdentity`)
 - Windows single-instance + named-pipe file handoff; CLI open-or-create paths (`xpad --help`)
 - `package.json` + `scripts/xpad.js` for `bun link` → Release `xpad.exe`
 - Copy full path / Reveal in Explorer; status bar shows file path

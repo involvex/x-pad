@@ -60,6 +60,23 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe
 
 This adds **Send to → X-Pad** and per-user **Open with** for common text/code types. It does **not** replace `notepad.exe` as the system default.
 
+## Microsoft Store (MSIX)
+
+Create an **MSIX- oder PWA-App** product in Partner Center (not EXE/MSI). Copy **Product identity** values (package name, `CN=…` publisher, publisher display name), then pack:
+
+```powershell
+# Local sideload (default XPad.Dev identity)
+pwsh scripts/publish-msix.ps1 -Install
+
+# Store upload — use identity from Partner Center
+pwsh scripts/publish-msix.ps1 `
+  -PackageName "<identity name>" `
+  -Publisher "<CN=... from Partner Center>" `
+  -PublisherDisplayName "<publisher display name>"
+```
+
+Requires the Windows 10/11 SDK (`makeappx` / `signtool`). Output: `publish/xpad-<version>-win-x64.msix`. The Store re-signs the package; do not attach the MSIX to GitHub Releases (zip releases stay unchanged). A Store/MSIX install skips the GitHub updater and is updated by the Store. Listing still needs screenshots, 1:1 box art, a privacy-policy URL, and the IARC age rating.
+
 ## Cut a release
 
 ```powershell
@@ -83,7 +100,7 @@ Preferences (`Ctrl+,`) use a sidebar: Editor, Saving, Appearance, Formatter, Lan
 
 ## Updates
 
-**Help → Check for Updates** (and Preferences → Updates) query [GitHub Releases](https://github.com/involvex/x-pad/releases/latest). When a newer version is available you can update in place from a published install, or open the release page from a `dotnet run` / `bin\` build.
+**Help → Check for Updates** (and Preferences → Updates) query [GitHub Releases](https://github.com/involvex/x-pad/releases/latest). When a newer version is available you can update in place from a published install, or open the release page from a `dotnet run` / `bin\` build. Microsoft Store / MSIX installs skip this path and show that the Store handles updates.
 
 `pwsh scripts/publish-win-x64.ps1` writes `xpad.install.json` into the publish folder so the updater downloads the matching zip (`xpad-win-x64.zip` or `xpad-win-x64-selfcontained.zip`). Startup update checks are on by default (at most once every 12 hours) and never download until you confirm.
 
