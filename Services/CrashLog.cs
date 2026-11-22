@@ -20,7 +20,7 @@ public static class CrashLog
             "XPad",
             "crash.log");
 
-    public static void Write(Exception ex)
+    public static void Write(Exception ex, bool openConsole = true)
     {
         try
         {
@@ -29,6 +29,9 @@ public static class CrashLog
                 Directory.CreateDirectory(dir);
 
             File.WriteAllText(LogPath, $"{DateTime.Now:O}\n{ex}");
+            if (!openConsole)
+                return;
+
             EnsureConsole();
             Console.Error.WriteLine(ex);
             Console.Error.WriteLine($"Crash log: {LogPath}");

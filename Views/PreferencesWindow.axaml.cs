@@ -109,6 +109,8 @@ public partial class PreferencesWindow : Window
             Theme = _original.Theme,
             RecentFiles = [.. _original.RecentFiles],
             MaxRecentFiles = _original.MaxRecentFiles,
+            FavoriteFiles = [.. _original.FavoriteFiles],
+            MaxFavoriteFiles = _original.MaxFavoriteFiles,
             LanguageServers = ParseServers(lsp?.Text)
         };
         Close(true);

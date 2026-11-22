@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -10,6 +11,7 @@ namespace x_pad.Views;
 public partial class TerminalPanel : UserControl
 {
     private bool _started;
+    private bool _launchQueued;
     private string? _cwdHint;
 
     public event EventHandler? HideRequested;
@@ -17,7 +19,15 @@ public partial class TerminalPanel : UserControl
     public TerminalPanel()
     {
         InitializeComponent();
-        AttachedToVisualTree += (_, _) => EnsureStarted();
+        // Do not LaunchProcess on AttachedToVisualTree — the panel stays in the
+        // tree while hidden, and Iciclecreek NRE's MaxScrollback before layout.
+        PropertyChanged += OnPropertyChanged;
+    }
+
+    private void OnPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsVisibleProperty && IsVisible)
+            EnsureStarted();
     }
 
     public void SetWorkingDirectoryHint(string? path)
@@ -28,8 +38,26 @@ public partial class TerminalPanel : UserControl
 
     public void EnsureStarted()
     {
-        if (_started || Terminal == null)
+        if (_started || _launchQueued || Terminal == null || !IsVisible)
             return;
+
+        _launchQueued = true;
+        // Wait until the control has a real size so TerminalView viewport exists.
+        Dispatcher.UIThread.Post(TryLaunchWhenReady, DispatcherPriority.Loaded);
+    }
+
+    private void TryLaunchWhenReady()
+    {
+        _launchQueued = false;
+        if (_started || Terminal == null || !IsVisible)
+            return;
+
+        if (Terminal.Bounds.Width < 8 || Terminal.Bounds.Height < 8)
+        {
+            _launchQueued = true;
+            Dispatcher.UIThread.Post(TryLaunchWhenReady, DispatcherPriority.Background);
+            return;
+        }
 
         try
         {
@@ -41,6 +69,7 @@ public partial class TerminalPanel : UserControl
         }
         catch (Exception ex)
         {
+            _started = false;
             if (TitleBlock != null)
                 TitleBlock.Text = "Terminal failed: " + ex.Message;
         }
@@ -59,22 +88,7 @@ public partial class TerminalPanel : UserControl
         }
 
         _started = false;
-        Dispatcher.UIThread.Post(() =>
-        {
-            try
-            {
-                var shell = ResolveShell();
-                var cwd = ResolveStartDirectory();
-                Terminal.LaunchProcess(cwd, shell);
-                _started = true;
-                UpdateTitle();
-            }
-            catch (Exception ex)
-            {
-                if (TitleBlock != null)
-                    TitleBlock.Text = "Terminal failed: " + ex.Message;
-            }
-        }, DispatcherPriority.Background);
+        EnsureStarted();
     }
 
     private void OnKill(object? sender, RoutedEventArgs e)

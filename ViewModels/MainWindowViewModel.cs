@@ -67,6 +67,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool isTerminalVisible;
 
     public ObservableCollection<string> RecentFiles { get; } = new();
+    public ObservableCollection<string> FavoriteFiles { get; } = new();
 
     public event EventHandler? RecentFilesChanged;
 
@@ -80,6 +81,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _lspManager.DiagnosticsReceived += OnLspDiagnostics;
         WordWrap = _settingsService.Current.WordWrap;
         RefreshRecentFiles();
+        RefreshFavoriteFiles();
 
         EditorThemeService.ApplyAppTheme(_settingsService.Current.Theme);
 
@@ -1242,6 +1244,80 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task OpenFavorite(object? parameter)
+    {
+        if (parameter is not string path || string.IsNullOrWhiteSpace(path))
+            return;
+
+        if (!File.Exists(path))
+        {
+            RemoveFavoritePath(path);
+            StatusText = "Favorite missing — removed from list";
+            return;
+        }
+
+        await OpenFileFromPath(path);
+    }
+
+    [RelayCommand]
+    private void ClearFavorites()
+    {
+        _settingsService.Update(s => s.FavoriteFiles.Clear());
+        RefreshFavoriteFiles();
+        StatusText = "Favorites cleared";
+    }
+
+    [RelayCommand]
+    private void AddFavorite(object? parameter)
+    {
+        var path = ResolveTabPath(parameter);
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            StatusText = "Save the file before adding to favorites";
+            return;
+        }
+
+        _settingsService.Update(s =>
+        {
+            s.FavoriteFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            s.FavoriteFiles.Insert(0, path);
+            var max = Math.Max(1, s.MaxFavoriteFiles);
+            if (s.FavoriteFiles.Count > max)
+                s.FavoriteFiles.RemoveRange(max, s.FavoriteFiles.Count - max);
+        });
+        RefreshFavoriteFiles();
+        StatusText = $"Favorited {Path.GetFileName(path)}";
+    }
+
+    [RelayCommand]
+    private void RemoveFavorite(object? parameter)
+    {
+        var path = ResolveTabPath(parameter);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            StatusText = "No file path for this tab";
+            return;
+        }
+
+        RemoveFavoritePath(path);
+        StatusText = $"Removed from favorites: {Path.GetFileName(path)}";
+    }
+
+    private void RemoveFavoritePath(string path)
+    {
+        _settingsService.Update(s =>
+            s.FavoriteFiles.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase)));
+        RefreshFavoriteFiles();
+    }
+
+    private void RefreshFavoriteFiles()
+    {
+        FavoriteFiles.Clear();
+        foreach (var path in _settingsService.Current.FavoriteFiles)
+            FavoriteFiles.Add(path);
+    }
+
+    [RelayCommand]
     private void Undo() => GetSelectedEditor()?.TextEditorControl?.Undo();
 
     [RelayCommand]
@@ -1659,6 +1735,9 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("View: Move Tab Left", "Ctrl+Shift+PageUp", "View", () => { MoveTabLeft(); return Task.CompletedTask; }),
             Entry("View: Move Tab Right", "Ctrl+Shift+PageDown", "View", () => { MoveTabRight(); return Task.CompletedTask; }),
             Entry("File: Clear Recent Files", null, "File", () => { ClearRecentFiles(); return Task.CompletedTask; }),
+            Entry("File: Clear Favorites", null, "File", () => { ClearFavorites(); return Task.CompletedTask; }),
+            Entry("File: Add to Favorites", null, "File", () => { AddFavorite(SelectedTab); return Task.CompletedTask; }),
+            Entry("File: Remove from Favorites", null, "File", () => { RemoveFavorite(SelectedTab); return Task.CompletedTask; }),
             Entry("View: Zoom In", "Ctrl+=", "View", () => { ZoomIn(); return Task.CompletedTask; }),
             Entry("View: Zoom Out", "Ctrl+-", "View", () => { ZoomOut(); return Task.CompletedTask; }),
             Entry("View: Zoom Reset", "Ctrl+0", "View", () => { ZoomReset(); return Task.CompletedTask; }),
@@ -1680,6 +1759,16 @@ public partial class MainWindowViewModel : ViewModelBase
                 $"Open Recent: {Path.GetFileName(capture)}",
                 null,
                 "Recent",
+                () => OpenFileFromPath(capture)));
+        }
+
+        foreach (var path in FavoriteFiles)
+        {
+            var capture = path;
+            entries.Add(Entry(
+                $"Favorite: {Path.GetFileName(capture)}",
+                null,
+                "Favorites",
                 () => OpenFileFromPath(capture)));
         }
 

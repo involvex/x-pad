@@ -36,7 +36,7 @@ public sealed class TrayService : IDisposable
 
         _icon = new TrayIcon
         {
-            Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://xpad/Assets/avalonia-logo.ico"))),
+            Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://xpad/Assets/xpad.ico"))),
             ToolTipText = "X-Pad",
             IsVisible = true,
             Menu = menu,

@@ -19,7 +19,9 @@ sealed class Program
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            CrashLog.Write(e.Exception);
+            // Quiet file log only — AllocConsole here was popping a scary console
+            // for library bugs (e.g. Iciclecreek Terminal MaxScrollback NRE).
+            CrashLog.Write(e.Exception, openConsole: false);
             e.SetObserved();
         };
 

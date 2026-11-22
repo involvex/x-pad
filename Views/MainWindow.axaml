@@ -8,7 +8,7 @@
         x:Class="x_pad.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/xpad.ico"
         Title="{Binding SelectedTab.Title, StringFormat='X-Pad - {0}', FallbackValue='X-Pad'}"
         MinWidth="600"
         MinHeight="400"
@@ -88,6 +88,16 @@
                     </MenuItem.Styles>
                 </MenuItem>
                 <MenuItem Header="Clear Recent Files" Command="{Binding ClearRecentFilesCommand}" />
+                <MenuItem Header="_Favorites" ItemsSource="{Binding FavoriteFiles}">
+                    <MenuItem.Styles>
+                        <Style Selector="MenuItem > MenuItem">
+                            <Setter Property="Header" Value="{Binding}" />
+                            <Setter Property="Command" Value="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenFavoriteCommand}" />
+                            <Setter Property="CommandParameter" Value="{Binding}" />
+                        </Style>
+                    </MenuItem.Styles>
+                </MenuItem>
+                <MenuItem Header="Clear Favorites" Command="{Binding ClearFavoritesCommand}" />
                 <Separator />
                 <MenuItem Header="_Save" Command="{Binding SaveFileCommand}" InputGesture="Ctrl+S" />
                 <MenuItem Header="Save _As..." Command="{Binding SaveFileAsCommand}" InputGesture="Ctrl+Shift+S" />
@@ -336,6 +346,12 @@
                                                       Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenWithWindowsTerminalCommand}"
                                                       CommandParameter="{Binding}" />
                                         </MenuItem>
+                                        <MenuItem Header="Add to Favorites"
+                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).AddFavoriteCommand}"
+                                                  CommandParameter="{Binding}" />
+                                        <MenuItem Header="Remove from Favorites"
+                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RemoveFavoriteCommand}"
+                                                  CommandParameter="{Binding}" />
                                         <Separator />
                                         <MenuItem Header="Close"
                                                   Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"

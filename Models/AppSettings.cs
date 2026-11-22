@@ -25,6 +25,8 @@ public sealed class AppSettings
     public string Theme { get; set; } = "Dark";
     public List<string> RecentFiles { get; set; } = [];
     public int MaxRecentFiles { get; set; } = 12;
+    public List<string> FavoriteFiles { get; set; } = [];
+    public int MaxFavoriteFiles { get; set; } = 40;
     public Dictionary<string, string> LanguageServers { get; set; } = new()
     {
         ["typescript"] = "typescript-language-server --stdio",
