@@ -1,5 +1,9 @@
 # Changelog
 
+
+## 0.5.5 - 2026-11-24
+
+- feat(ui): add Hacker/AMOLED/GitHub themes and VS Code shortcuts
 ## 0.5.4 - 2026-11-23
 
 - fix(ui): restore dock explorer, terminal, and document tabs
