@@ -154,14 +154,18 @@
 
                     <!-- Shortcuts -->
                     <StackPanel Spacing="12" IsVisible="{Binding IsShortcutsPage}">
-                        <Grid ColumnDefinitions="*,Auto">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                             <TextBlock Grid.Column="0" Text="Shortcuts" FontWeight="SemiBold" FontSize="16"
                                        VerticalAlignment="Center" />
                             <Button Grid.Column="1"
+                                    Content="VS Code"
+                                    Command="{Binding ApplyVsCodeShortcutsCommand}"
+                                    ToolTip.Tip="Apply VS Code-style defaults" />
+                            <Button Grid.Column="2"
                                     Content="Reset all"
                                     Command="{Binding ResetAllShortcutsCommand}" />
                         </Grid>
-                        <TextBlock Text="Click a gesture field and press the new keys. Capture does not run the command."
+                        <TextBlock Text="Defaults follow VS Code where possible. Click a gesture field and press the new keys. Capture does not run the command."
                                    Opacity="0.7"
                                    FontSize="11"
                                    TextWrapping="Wrap" />

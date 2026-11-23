@@ -30,7 +30,8 @@ public partial class PreferencesViewModel : ViewModelBase
         "Segoe UI, sans-serif"
     ];
 
-    public static readonly string[] ThemeChoices = ["Dark", "Light", "System", "Monokai"];
+    public static readonly string[] ThemeChoices =
+        ["Dark", "Light", "System", "Monokai", "Hacker", "Amoled", "Github"];
 
     public ObservableCollection<PreferencesPage> Pages { get; } =
     [
@@ -219,6 +220,20 @@ public partial class PreferencesViewModel : ViewModelBase
         foreach (var item in ShortcutBindings)
             item.Reset();
         ShortcutConflict = "";
+    }
+
+    [RelayCommand]
+    private void ApplyVsCodeShortcuts()
+    {
+        foreach (var item in ShortcutBindings)
+        {
+            if (KeyBindingCatalog.VsCodePreset.TryGetValue(item.Id, out var gesture))
+                item.Gesture = gesture;
+            else
+                item.Reset();
+        }
+
+        ValidateShortcuts();
     }
 
     [RelayCommand]

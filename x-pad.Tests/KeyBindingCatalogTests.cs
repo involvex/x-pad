@@ -70,6 +70,17 @@ public class KeyBindingCatalogTests
     }
 
     [Fact]
+    public void Defaults_match_vs_code_quick_open_and_multi_cursor()
+    {
+        Assert.Equal("Ctrl+P", KeyBindingCatalog.ResolveGesture("OpenQuickOpen", null));
+        Assert.Equal("Ctrl+D", KeyBindingCatalog.ResolveGesture("AddNextOccurrence", null));
+        Assert.Equal("Shift+Alt+Down", KeyBindingCatalog.ResolveGesture("DuplicateLine", null));
+        Assert.Equal("Ctrl+B", KeyBindingCatalog.ResolveGesture("ToggleExplorer", null));
+        Assert.Equal("Ctrl+Alt+P", KeyBindingCatalog.ResolveGesture("Print", null));
+        Assert.Null(KeyBindingCatalog.ValidateOverrides(KeyBindingCatalog.VsCodePreset));
+    }
+
+    [Fact]
     public void ValidateOverrides_rejects_unknown_id()
     {
         var overrides = new Dictionary<string, string> { ["NotARealCommand"] = "Ctrl+K" };

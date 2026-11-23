@@ -147,6 +147,24 @@ public partial class MainWindowViewModel : ViewModelBase
         set { if (value) ApplyTheme("Monokai"); }
     }
 
+    public bool IsThemeHacker
+    {
+        get => string.Equals(Theme, "Hacker", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ApplyTheme("Hacker"); }
+    }
+
+    public bool IsThemeAmoled
+    {
+        get => string.Equals(Theme, "Amoled", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ApplyTheme("Amoled"); }
+    }
+
+    public bool IsThemeGithub
+    {
+        get => string.Equals(Theme, "Github", StringComparison.OrdinalIgnoreCase);
+        set { if (value) ApplyTheme("Github"); }
+    }
+
     public MainWindowViewModel(string[]? args = null, SettingsService? settings = null)
     {
         _settingsService = settings ?? new SettingsService();
@@ -419,6 +437,9 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsThemeLight));
         OnPropertyChanged(nameof(IsThemeSystem));
         OnPropertyChanged(nameof(IsThemeMonokai));
+        OnPropertyChanged(nameof(IsThemeHacker));
+        OnPropertyChanged(nameof(IsThemeAmoled));
+        OnPropertyChanged(nameof(IsThemeGithub));
     }
 
     private void ApplyTheme(string theme)
@@ -1860,6 +1881,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ToggleMonokaiTheme() => SetTheme("Monokai");
 
     [RelayCommand]
+    private void ToggleHackerTheme() => SetTheme("Hacker");
+
+    [RelayCommand]
+    private void ToggleAmoledTheme() => SetTheme("Amoled");
+
+    [RelayCommand]
+    private void ToggleGithubTheme() => SetTheme("Github");
+
+    [RelayCommand]
     private void NextTab()
     {
         if (Tabs.Count == 0) return;
@@ -2477,7 +2507,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Code Actions…", "Ctrl+.", "Edit", () => ShowCodeActions()),
             Entry("Edit: Toggle Line Comment", "Ctrl+/", "Edit", () => { ToggleLineComment(); return Task.CompletedTask; }),
             Entry("Edit: Insert Date/Time", "F5", "Edit", () => { InsertDateTime(); return Task.CompletedTask; }),
-            Entry("Edit: Duplicate Line", "Ctrl+D", "Edit", () => { DuplicateLine(); return Task.CompletedTask; }),
+            Entry("Edit: Duplicate Line", "Shift+Alt+Down", "Edit", () => { DuplicateLine(); return Task.CompletedTask; }),
             Entry("Help: Check for Updates…", null, "Help", () => CheckForUpdates()),
             Entry("Help: About X-Pad", null, "Help", () => ShowAbout()),
             Entry("Edit: Upper Case", "Ctrl+U", "Edit", () => { UpperCase(); return Task.CompletedTask; }),
@@ -2525,9 +2555,13 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("View: Dark Mode", null, "View", () => { ToggleDarkMode(); return Task.CompletedTask; }),
             Entry("View: Light Mode", null, "View", () => { ToggleLightMode(); return Task.CompletedTask; }),
             Entry("View: Monokai Theme", null, "View", () => { ToggleMonokaiTheme(); return Task.CompletedTask; }),
+            Entry("View: Hacker Theme", null, "View", () => { ToggleHackerTheme(); return Task.CompletedTask; }),
+            Entry("View: AMOLED Theme", null, "View", () => { ToggleAmoledTheme(); return Task.CompletedTask; }),
+            Entry("View: GitHub Theme", null, "View", () => { ToggleGithubTheme(); return Task.CompletedTask; }),
+            Entry("View: Toggle Explorer", "Ctrl+B", "View", () => { ToggleExplorer(); return Task.CompletedTask; }),
             Entry("View: Preferences…", "Ctrl+,", "View", () => OpenPreferences()),
             Entry("View: Command Palette…", "Ctrl+Shift+P", "View", () => OpenCommandPalette()),
-            Entry("View: Quick Open…", "Ctrl+E", "View", () => OpenQuickOpen()),
+            Entry("View: Quick Open…", "Ctrl+P", "View", () => OpenQuickOpen()),
 
             Entry("Tools: Install Send To", null, "Tools", () => { InstallSendTo(); return Task.CompletedTask; }),
             Entry("Tools: Register Open With (text types)", null, "Tools", () => { RegisterOpenWith(); return Task.CompletedTask; }),

@@ -97,7 +97,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Bracket match/jump, word highlight, multi-occurrence edit, select line (`Ctrl+L`), auto-indent, line/block comments (follow language override; HTML/XML `<!-- -->`)
 - Bookmarks (`Ctrl+F2` / `F2` / `Shift+F2`), rectangular selection (Alt+drag)
 - Command palette (`Ctrl+Shift+P`) for actions + recent files
-- Quick Open (`Ctrl+E`) for open tabs + recent files
+- Quick Open (`Ctrl+P`) for open tabs + recent files; Preferences Shortcuts include a VS Code preset
 - Session restore with selected tab + caret line/column
 - Crash recovery for dirty/untitled buffers (`%APPDATA%/XPad/recovery/`); clean exit clears snapshots
 - Case/sort/join/trim + remove empty/duplicate lines; insert spaces vs tabs pref; trim + final newline on save; optional `.bak` backup on save
@@ -120,7 +120,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Copy full path / Reveal in Explorer; status bar shows file path
 - Tools: SendTo shortcut + per-user Open With (common text/code types)
 - Reload from disk (prompts when dirty)
-- Themes: Dark / Light / System / Monokai (TextMate)
+- Themes: Dark / Light / System / Monokai / Hacker / AMOLED / GitHub (TextMate + editor surface)
 - Minimize to tray (pref) with Recent submenu; editor context menu (invert select, Search Web)
 - Tab Open With (VS Code / Cursor / Windows Terminal); Favorites (File menu + tab context); Export as PDF; embedded ConPTY terminal (Ctrl+`)
 
@@ -161,8 +161,8 @@ Manual: tabs + dirty close, dark theme, syntax highlight, Find/Replace, find in 
 - Route window shortcuts through `KeyBindingCatalog` / `KeyBindingApplier` (not hard-coded `Window.KeyBindings`).
 - Keep errors non-fatal for the user: degrade gracefully (e.g., missing LSP servers) and log
   unexpected UI failures instead of terminating the process.
-- Preserve the existing Dark / Light / System / Monokai theme support when changing the UI,
-  and prefer a dark appearance as the default.
+- Preserve the existing Dark / Light / System / Monokai / Hacker / AMOLED / GitHub theme support
+  when changing the UI, and prefer a dark appearance as the default.
 - Verify changes with `dotnet test` and the daily-driver smoke checklist above before calling
   work complete.
 - Keep this file and `README.md` in sync when scripts, dependencies, or workflows change.

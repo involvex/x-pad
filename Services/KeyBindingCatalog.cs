@@ -14,6 +14,10 @@ public sealed record KeyBindingDefinition(
 
 public static class KeyBindingCatalog
 {
+    /// <summary>
+    /// Defaults follow VS Code where the command exists in x-pad.
+    /// Print uses Ctrl+Alt+P so Ctrl+P can stay Quick Open.
+    /// </summary>
     public static IReadOnlyList<KeyBindingDefinition> All { get; } =
     [
         new("NextTab", "Next tab", "Ctrl+Tab", "NextTabCommand"),
@@ -42,15 +46,16 @@ public static class KeyBindingCatalog
         new("InsertDateTime", "Insert date/time", "F5", "InsertDateTimeCommand"),
         new("ToggleWordWrap", "Toggle word wrap", "Alt+Z", "ToggleWordWrapCommand"),
         new("OpenPreferences", "Preferences", "Ctrl+OemComma", "OpenPreferencesCommand"),
-        new("Print", "Print", "Ctrl+P", "PrintCommand"),
+        new("Print", "Print", "Ctrl+Alt+P", "PrintCommand"),
+        new("ToggleExplorer", "Toggle explorer", "Ctrl+B", "ToggleExplorerCommand"),
         new("ToggleTerminal", "Toggle terminal", "Ctrl+OemTilde", "ToggleTerminalCommand"),
         new("OpenCommandPalette", "Command palette", "Ctrl+Shift+P", "OpenCommandPaletteCommand"),
-        new("OpenQuickOpen", "Quick open", "Ctrl+E", "OpenQuickOpenCommand"),
-        new("DuplicateLine", "Duplicate line", "Ctrl+D", "DuplicateLineCommand"),
+        new("OpenQuickOpen", "Quick open", "Ctrl+P", "OpenQuickOpenCommand"),
+        new("DuplicateLine", "Duplicate line", "Shift+Alt+Down", "DuplicateLineCommand"),
         new("MoveLineUp", "Move line up", "Alt+Up", "MoveLineUpCommand"),
         new("MoveLineDown", "Move line down", "Alt+Down", "MoveLineDownCommand"),
-        new("JumpToMatchingBracket", "Jump to matching bracket", "Ctrl+M", "JumpToMatchingBracketCommand"),
-        new("AddNextOccurrence", "Add next occurrence", "Ctrl+Alt+Right", "AddNextOccurrenceCommand"),
+        new("JumpToMatchingBracket", "Jump to matching bracket", "Ctrl+Shift+OemPipe", "JumpToMatchingBracketCommand"),
+        new("AddNextOccurrence", "Add next occurrence", "Ctrl+D", "AddNextOccurrenceCommand"),
         new("SelectAllOccurrences", "Select all occurrences", "Ctrl+Shift+L", "SelectAllOccurrencesCommand"),
         new("SelectCurrentLine", "Select current line", "Ctrl+L", "SelectCurrentLineCommand"),
         new("TriggerCompletions", "Trigger completions", "Ctrl+Space", "TriggerCompletionsCommand"),
@@ -65,6 +70,10 @@ public static class KeyBindingCatalog
         new("ZoomOut", "Zoom out", "Ctrl+OemMinus", "ZoomOutCommand", "Ctrl+Subtract"),
         new("ZoomReset", "Zoom reset", "Ctrl+D0", "ZoomResetCommand", "Ctrl+NumPad0"),
     ];
+
+    /// <summary>Explicit VS Code-style map (same as <see cref="All"/> defaults for listed ids).</summary>
+    public static IReadOnlyDictionary<string, string> VsCodePreset { get; } =
+        All.ToDictionary(d => d.Id, d => d.DefaultGesture, StringComparer.Ordinal);
 
     public static string ResolveGesture(string id, IReadOnlyDictionary<string, string>? overrides)
     {
@@ -152,6 +161,7 @@ public static class KeyBindingCatalog
             .Replace("OemQuestion", "/", StringComparison.OrdinalIgnoreCase)
             .Replace("OemTilde", "`", StringComparison.OrdinalIgnoreCase)
             .Replace("OemPlus", "+", StringComparison.OrdinalIgnoreCase)
-            .Replace("OemMinus", "-", StringComparison.OrdinalIgnoreCase);
+            .Replace("OemMinus", "-", StringComparison.OrdinalIgnoreCase)
+            .Replace("OemPipe", "\\", StringComparison.OrdinalIgnoreCase);
     }
 }

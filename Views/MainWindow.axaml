@@ -61,7 +61,7 @@
                 <MenuItem Header="_Save" Command="{Binding SaveFileCommand}" InputGesture="Ctrl+S" />
                 <MenuItem Header="Save _As..." Command="{Binding SaveFileAsCommand}" InputGesture="Ctrl+Shift+S" />
                 <MenuItem Header="Save A_ll" Command="{Binding SaveAllCommand}" InputGesture="Ctrl+Alt+S" />
-                <MenuItem Header="_Print..." Command="{Binding PrintCommand}" InputGesture="Ctrl+P" />
+                <MenuItem Header="_Print..." Command="{Binding PrintCommand}" InputGesture="Ctrl+Alt+P" />
                 <MenuItem Header="Export as P_DF..." Command="{Binding ExportPdfCommand}" />
                 <Separator />
                 <MenuItem Header="Copy Full _Path" Command="{Binding CopyFullPathCommand}" />
@@ -98,12 +98,12 @@
                 <MenuItem Header="_Invert Selection" Command="{Binding InvertSelectionCommand}" />
                 <MenuItem Header="Search _Web" Command="{Binding SearchWebCommand}" />
                 <Separator />
-                <MenuItem Header="_Duplicate Line" Command="{Binding DuplicateLineCommand}" InputGesture="Ctrl+D" />
+                <MenuItem Header="_Duplicate Line" Command="{Binding DuplicateLineCommand}" InputGesture="Shift+Alt+Down" />
                 <MenuItem Header="Move Line _Up" Command="{Binding MoveLineUpCommand}" InputGesture="Alt+Up" />
                 <MenuItem Header="Move Line _Down" Command="{Binding MoveLineDownCommand}" InputGesture="Alt+Down" />
                 <Separator />
-                <MenuItem Header="Jump to Matching _Bracket" Command="{Binding JumpToMatchingBracketCommand}" InputGesture="Ctrl+M" />
-                <MenuItem Header="Add Next _Occurrence" Command="{Binding AddNextOccurrenceCommand}" InputGesture="Ctrl+Alt+Right" />
+                <MenuItem Header="Jump to Matching _Bracket" Command="{Binding JumpToMatchingBracketCommand}" InputGesture="Ctrl+Shift+OemPipe" />
+                <MenuItem Header="Add Next _Occurrence" Command="{Binding AddNextOccurrenceCommand}" InputGesture="Ctrl+D" />
                 <MenuItem Header="Select All Occurren_ces" Command="{Binding SelectAllOccurrencesCommand}" InputGesture="Ctrl+Shift+L" />
                 <MenuItem Header="Select Current _Line" Command="{Binding SelectCurrentLineCommand}" InputGesture="Ctrl+L" />
                 <MenuItem Header="Trigger _Completions" Command="{Binding TriggerCompletionsCommand}" InputGesture="Ctrl+Space" />
@@ -140,7 +140,8 @@
                 <MenuItem Header="_Explorer"
                          ToggleType="CheckBox"
                          IsChecked="{Binding IsExplorerVisible, Mode=OneWay}"
-                         Command="{Binding ToggleExplorerCommand}" />
+                         Command="{Binding ToggleExplorerCommand}"
+                         InputGesture="Ctrl+B" />
                 <MenuItem Header="_Word Wrap"
                          ToggleType="CheckBox"
                          IsChecked="{Binding SelectedTab.WordWrap, Mode=OneWay}"
@@ -205,11 +206,23 @@
                              ToggleType="Radio"
                              GroupName="AppTheme"
                              IsChecked="{Binding IsThemeMonokai}" />
+                    <MenuItem Header="_Hacker"
+                             ToggleType="Radio"
+                             GroupName="AppTheme"
+                             IsChecked="{Binding IsThemeHacker}" />
+                    <MenuItem Header="_AMOLED"
+                             ToggleType="Radio"
+                             GroupName="AppTheme"
+                             IsChecked="{Binding IsThemeAmoled}" />
+                    <MenuItem Header="_GitHub"
+                             ToggleType="Radio"
+                             GroupName="AppTheme"
+                             IsChecked="{Binding IsThemeGithub}" />
                 </MenuItem>
                 <Separator />
                 <MenuItem Header="_Preferences..." Command="{Binding OpenPreferencesCommand}" InputGesture="Ctrl+OemComma" />
                 <MenuItem Header="Command _Palette..." Command="{Binding OpenCommandPaletteCommand}" InputGesture="Ctrl+Shift+P" />
-                <MenuItem Header="Quick _Open..." Command="{Binding OpenQuickOpenCommand}" InputGesture="Ctrl+E" />
+                <MenuItem Header="Quick _Open..." Command="{Binding OpenQuickOpenCommand}" InputGesture="Ctrl+P" />
             </MenuItem>
             <MenuItem Header="_Tools">
                 <MenuItem Header="Install _Send To shortcut" Command="{Binding InstallSendToCommand}" />

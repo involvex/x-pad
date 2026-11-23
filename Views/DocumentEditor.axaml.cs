@@ -354,7 +354,7 @@ public partial class DocumentEditor : UserControl
             _textMateSecondary = _editorSecondary.InstallTextMate(secondaryRegistry);
             _textMateSecondary.SetTheme(secondaryRegistry.LoadTheme(theme));
         }
-        ApplyEditorSurfaceColors(theme);
+        ApplyEditorSurfaceColors();
         _searchPanel = SearchPanel.Install(_editor);
         // Amber wash that stays visible on dark TextMate themes.
         _editor.SearchResultsBrush =
@@ -810,24 +810,16 @@ public partial class DocumentEditor : UserControl
         var loaded = _registry.LoadTheme(theme);
         _textMate.SetTheme(loaded);
         _textMateSecondary?.SetTheme(loaded);
-        ApplyEditorSurfaceColors(theme);
+        ApplyEditorSurfaceColors();
         ApplyGrammar();
     }
 
-    private void ApplyEditorSurfaceColors(ThemeName theme)
+    private void ApplyEditorSurfaceColors()
     {
-        var light = theme is ThemeName.Light
-            or ThemeName.LightPlus
-            or ThemeName.QuietLight
-            or ThemeName.AtomOneLight
-            or ThemeName.VisualStudioLight
-            or ThemeName.HighContrastLight
-            or ThemeName.SolarizedLight;
-
-        // TextMate should own colors; force a matching surface so Fluent DynamicResource
-        // (or a missed SetTheme) cannot leave a white editor on dark chrome.
-        var bg = Avalonia.Media.Color.Parse(light ? "#FFFFFF" : "#1E1E1E");
-        var fg = Avalonia.Media.Color.Parse(light ? "#1E1E1E" : "#D4D4D4");
+        // Prefer the app theme surface (Hacker / AMOLED / GitHub) over TextMate name heuristics.
+        var surface = EditorThemeService.CurrentSurface;
+        var bg = Avalonia.Media.Color.Parse(surface.BackgroundHex);
+        var fg = Avalonia.Media.Color.Parse(surface.ForegroundHex);
         var bgBrush = new Avalonia.Media.SolidColorBrush(bg);
         var fgBrush = new Avalonia.Media.SolidColorBrush(fg);
 
