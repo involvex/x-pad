@@ -44,7 +44,10 @@ pwsh scripts/publish-msix.ps1 `
   -PublisherDisplayName "<publisher display name>"
 
 # Cut a release (patch bump default): bump csproj/package.json, CHANGELOG, tag, push
-# Tag push triggers .github/workflows/release.yml (artifacts + GitHub Release)
+# Tag push triggers .github/workflows/release.yml (artifacts + GitHub Release).
+# When PARTNER_CENTER_TENANT_ID / SELLER_ID / CLIENT_ID / CLIENT_SECRET are set,
+# the same workflow also packs an unsigned Store MSIX and submits product 9P88NMM8F1WL.
+# Missing any of those secrets skips the Store job.
 pwsh scripts/release.ps1
 pwsh scripts/release.ps1 -Bump minor
 pwsh scripts/release.ps1 -Version 1.0.0

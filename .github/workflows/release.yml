@@ -62,3 +62,43 @@ jobs:
             xpad-win-x64-selfcontained.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  store:
+    needs: publish-win-x64
+    if: >-
+      secrets.PARTNER_CENTER_TENANT_ID != '' &&
+      secrets.PARTNER_CENTER_SELLER_ID != '' &&
+      secrets.PARTNER_CENTER_CLIENT_ID != '' &&
+      secrets.PARTNER_CENTER_CLIENT_SECRET != ''
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Pack unsigned Store MSIX
+        run: pwsh scripts/publish-msix.ps1 -SkipSign
+
+      - name: Setup Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.4
+
+      - name: Submit to the Store
+        shell: pwsh
+        run: |
+          msstore reconfigure `
+            --tenantId "$env:PARTNER_CENTER_TENANT_ID" `
+            --sellerId "$env:PARTNER_CENTER_SELLER_ID" `
+            --clientId "$env:PARTNER_CENTER_CLIENT_ID" `
+            --clientSecret "$env:PARTNER_CENTER_CLIENT_SECRET"
+          $msix = Get-ChildItem publish\xpad-*-win-x64.msix | Select-Object -First 1
+          if (-not $msix) { throw "No MSIX found under publish/" }
+          msstore publish $msix.FullName -id 9P88NMM8F1WL
+        env:
+          PARTNER_CENTER_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
+          PARTNER_CENTER_SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
+          PARTNER_CENTER_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+          PARTNER_CENTER_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}

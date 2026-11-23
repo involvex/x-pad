@@ -79,6 +79,8 @@ pwsh scripts/publish-msix.ps1 `
 
 Requires the Windows 10/11 SDK (`makeappx` / `signtool`). Output: `publish/xpad-<version>-win-x64.msix`. The Store re-signs the package; do not attach the MSIX to GitHub Releases (zip releases stay unchanged). A Store/MSIX install skips the GitHub updater and is updated by the Store. Listing still needs screenshots, 1:1 box art, a privacy-policy URL ([site/privacy.html](https://involvex.github.io/x-pad/privacy.html)), and the IARC age rating.
 
+A `v*` tag (or a manual run of the [release workflow](.github/workflows/release.yml)) also packs that MSIX and submits product **9P88NMM8F1WL** via the Microsoft Store Developer CLI when these repository secrets are set: `PARTNER_CENTER_TENANT_ID`, `PARTNER_CENTER_SELLER_ID`, `PARTNER_CENTER_CLIENT_ID`, `PARTNER_CENTER_CLIENT_SECRET`. If any secret is missing, the Store job is skipped; zip GitHub Releases are unchanged.
+
 ## Cut a release
 
 ```powershell
@@ -88,7 +90,7 @@ pwsh scripts/release.ps1 -Version 1.0.0
 pwsh scripts/release.ps1 -DryRun
 ```
 
-Updates `<Version>` in `x-pad.csproj` (About panel), `package.json`, and `CHANGELOG.md`, then commits, tags `vX.Y.Z`, and pushes. The [release workflow](.github/workflows/release.yml) builds the zips and creates the GitHub Release for that tag.
+Updates `<Version>` in `x-pad.csproj` (About panel), `package.json`, and `CHANGELOG.md`, then commits, tags `vX.Y.Z`, and pushes. The [release workflow](.github/workflows/release.yml) builds the zips, creates the GitHub Release for that tag, and (when the Partner Center secrets above are set) submits the Store MSIX.
 
 ## Settings
 
