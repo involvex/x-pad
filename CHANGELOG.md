@@ -5,6 +5,15 @@
 
 
 
+
+## 0.5.2 - 2026-11-23
+
+- ci(store): submit MSIX to Partner Center on release tags
+- feat(publish): add app screenshots
+- fix(terminal): await shell launch after emulator is ready
+- docs: add GitHub Pages site and deploy workflow
+- added workflow permission
+- feat(store): add MSIX pack script and skip GitHub updates when packaged
 ## 0.5.1 - 2026-11-22
 
 - feat(lsp): code actions with Ctrl+. text edits
