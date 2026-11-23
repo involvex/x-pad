@@ -4,7 +4,7 @@
 param(
     [string]$PackageName = "Einzelunternehmen.X-Pad",
     [string]$Publisher = "CN=50777D18-6AA9-43B0-9CE5-BB776BC9514F",
-    [string]$PublisherDisplayName = "Einzelunternehmen",
+    [string]$PublisherDisplayName = "involvex",
     [string]$DisplayName = "X-Pad",
     [switch]$Install,
     [switch]$SkipSign
