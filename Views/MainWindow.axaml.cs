@@ -4,6 +4,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using Dock.Avalonia.Controls;
+using x_pad.Services;
 using x_pad.ViewModels;
 
 namespace x_pad.Views;
@@ -12,6 +14,7 @@ public partial class MainWindow : Window
 {
     private bool _forceClose;
     private bool _trayHideInProgress;
+    private bool _fileTreeWired;
 
     public MainWindow()
     {
@@ -23,19 +26,21 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
 
-        if (this.FindControl<TerminalPanel>("TerminalHost") is { } terminal)
-            terminal.HideRequested += (_, _) =>
-            {
-                if (DataContext is MainWindowViewModel vm)
-                    vm.IsTerminalVisible = false;
-            };
+        if (DataContext is MainWindowViewModel vm)
+            WireTerminal(vm);
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainWindowViewModel vm2)
+                WireTerminal(vm2);
+        };
+    }
 
-        if (this.FindControl<FileTreePanel>("FileTreeHost") is { } tree)
-            tree.FileOpenRequested += async (_, path) =>
-            {
-                if (DataContext is MainWindowViewModel vm)
-                    await vm.OpenFileFromPath(path);
-            };
+    private void WireTerminal(MainWindowViewModel vm)
+    {
+        vm.TerminalTool.Panel.HideRequested += (_, _) =>
+        {
+            vm.IsTerminalVisible = false;
+        };
     }
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -87,13 +92,42 @@ public partial class MainWindow : Window
 
     private void OnOpened(object? sender, EventArgs e)
     {
+        if (DataContext is MainWindowViewModel vm && this.FindControl<DockControl>("DockHost") is { } dock)
+            vm.AttachDock(dock);
+
         WireEditors();
-        if (DataContext is MainWindowViewModel vm)
-            vm.PropertyChanged += (_, args) =>
+        WireFileTree();
+        ApplyKeyBindings();
+
+        if (DataContext is MainWindowViewModel vm2)
+            vm2.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab))
                     WireEditors();
             };
+    }
+
+    public void ApplyKeyBindings()
+    {
+        if (DataContext is not MainWindowViewModel vm)
+            return;
+        KeyBindingApplier.Apply(this, vm, vm.Settings.Current.KeyBindings);
+    }
+
+    private void WireFileTree()
+    {
+        if (_fileTreeWired)
+            return;
+
+        if (this.GetVisualDescendants().OfType<FileTreePanel>().FirstOrDefault() is not { } tree)
+            return;
+
+        tree.FileOpenRequested += async (_, path) =>
+        {
+            if (DataContext is MainWindowViewModel vm)
+                await vm.OpenFileFromPath(path);
+        };
+        _fileTreeWired = true;
     }
 
     private void WireEditors()
@@ -115,6 +149,7 @@ public partial class MainWindow : Window
         if (!ok)
             return;
 
+        vm.SaveDockLayout();
         _forceClose = true;
         Close();
     }
@@ -143,20 +178,5 @@ public partial class MainWindow : Window
             else if (System.IO.File.Exists(path))
                 await vm.OpenFileFromPath(path);
         }
-    }
-
-    private void OnTabPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!e.GetCurrentPoint(this).Properties.IsMiddleButtonPressed)
-            return;
-        if (sender is not Control control)
-            return;
-        if (control.DataContext is not DocumentViewModel tab)
-            return;
-        if (DataContext is not MainWindowViewModel vm)
-            return;
-
-        e.Handled = true;
-        _ = vm.CloseTabCommand.ExecuteAsync(tab);
     }
 }

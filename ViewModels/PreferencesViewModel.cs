@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using x_pad.Models;
+using x_pad.Services;
 using App = x_pad.App;
 
 namespace x_pad.ViewModels;
@@ -38,8 +39,14 @@ public partial class PreferencesViewModel : ViewModelBase
         new() { Id = "appearance", Title = "Appearance" },
         new() { Id = "formatter", Title = "Formatter" },
         new() { Id = "lsp", Title = "Language servers" },
+        new() { Id = "shortcuts", Title = "Shortcuts" },
         new() { Id = "updates", Title = "Updates" }
     ];
+
+    public ObservableCollection<ShortcutBindingItem> ShortcutBindings { get; } = [];
+
+    [ObservableProperty]
+    private string shortcutConflict = "";
 
     private readonly Func<Task>? _checkUpdates;
 
@@ -125,6 +132,7 @@ public partial class PreferencesViewModel : ViewModelBase
     public bool IsAppearancePage => SelectedPage?.Id == "appearance";
     public bool IsFormatterPage => SelectedPage?.Id == "formatter";
     public bool IsLspPage => SelectedPage?.Id == "lsp";
+    public bool IsShortcutsPage => SelectedPage?.Id == "shortcuts";
     public bool IsUpdatesPage => SelectedPage?.Id == "updates";
 
     partial void OnSelectedPageChanged(PreferencesPage? value)
@@ -134,6 +142,7 @@ public partial class PreferencesViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsAppearancePage));
         OnPropertyChanged(nameof(IsFormatterPage));
         OnPropertyChanged(nameof(IsLspPage));
+        OnPropertyChanged(nameof(IsShortcutsPage));
         OnPropertyChanged(nameof(IsUpdatesPage));
     }
 
@@ -160,6 +169,7 @@ public partial class PreferencesViewModel : ViewModelBase
         FormatExtensions = settings.FormatExtensions;
         LanguageServersText = FormatServers(settings.LanguageServers);
         CheckForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
+        LoadShortcuts(settings.KeyBindings);
     }
 
     public AppSettings ToSettings(AppSettings original)
@@ -191,8 +201,59 @@ public partial class PreferencesViewModel : ViewModelBase
             RecentFiles = [.. original.RecentFiles],
             MaxRecentFiles = original.MaxRecentFiles,
             FavoriteFiles = [.. original.FavoriteFiles],
-            MaxFavoriteFiles = original.MaxFavoriteFiles
+            MaxFavoriteFiles = original.MaxFavoriteFiles,
+            KeyBindings = BuildKeyBindingOverrides()
         };
+    }
+
+    public string? ValidateShortcuts()
+    {
+        var error = KeyBindingCatalog.ValidateOverrides(BuildKeyBindingOverrides());
+        ShortcutConflict = error ?? "";
+        return error;
+    }
+
+    [RelayCommand]
+    private void ResetAllShortcuts()
+    {
+        foreach (var item in ShortcutBindings)
+            item.Reset();
+        ShortcutConflict = "";
+    }
+
+    [RelayCommand]
+    private void ResetShortcut(ShortcutBindingItem? item)
+    {
+        item?.Reset();
+        ValidateShortcuts();
+    }
+
+    private void LoadShortcuts(Dictionary<string, string>? overrides)
+    {
+        ShortcutBindings.Clear();
+        foreach (var def in KeyBindingCatalog.All)
+        {
+            var resolved = KeyBindingCatalog.ResolveGesture(def.Id, overrides);
+            ShortcutBindings.Add(ShortcutBindingItem.FromDefinition(def, resolved));
+        }
+
+        ShortcutConflict = "";
+    }
+
+    private Dictionary<string, string> BuildKeyBindingOverrides()
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in ShortcutBindings)
+        {
+            var gesture = item.Gesture?.Trim() ?? "";
+            if (gesture.Length == 0)
+                continue;
+            if (string.Equals(gesture, item.DefaultGesture, StringComparison.OrdinalIgnoreCase))
+                continue;
+            map[item.Id] = gesture;
+        }
+
+        return map;
     }
 
     [RelayCommand]

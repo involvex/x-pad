@@ -2,10 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="x_pad.App"
              xmlns:local="using:x_pad"
+             xmlns:views="using:x_pad.Views"
+             xmlns:dockVm="using:x_pad.ViewModels.Dock"
+             xmlns:dockTheme="using:Dock.Avalonia.Themes.Fluent"
              RequestedThemeVariant="Dark">
 
     <Application.DataTemplates>
         <local:ViewLocator />
+        <DataTemplate DataType="dockVm:ExplorerToolViewModel">
+            <views:FileTreePanel DataContext="{Binding FileTree}" />
+        </DataTemplate>
+        <DataTemplate DataType="dockVm:TerminalToolViewModel">
+            <ContentControl Content="{Binding Panel}" />
+        </DataTemplate>
     </Application.DataTemplates>
 
     <Application.Resources>
@@ -33,6 +42,7 @@
 
     <Application.Styles>
         <FluentTheme />
+        <dockTheme:DockFluentTheme />
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
 
         <Style Selector="Window">

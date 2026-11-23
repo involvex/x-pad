@@ -19,10 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageReference Include="Avalonia" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.5" />
     <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
     <PackageReference Include="AvaloniaEdit.TextMate" Version="12.0.0" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
@@ -30,6 +30,11 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Dock.Avalonia" Version="12.1.5" />
+    <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="12.1.5" />
+    <PackageReference Include="Dock.Model.Avalonia" Version="12.1.5" />
+    <PackageReference Include="Dock.Model.Mvvm" Version="12.1.5" />
+    <PackageReference Include="Dock.Serializer.SystemTextJson" Version="12.1.5" />
     <PackageReference Include="Iciclecreek.Avalonia.Terminal" Version="4.1.4" />
     <PackageReference Include="QuestPDF" Version="2026.9.2" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.4" />

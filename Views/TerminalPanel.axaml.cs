@@ -18,6 +18,7 @@ public partial class TerminalPanel : UserControl
     private bool _launchQueued;
     private string? _cwdHint;
     private EventHandler? _layoutHandler;
+    private EventHandler<RoutedEventArgs>? _loadedHandler;
 
     public event EventHandler? HideRequested;
 
@@ -26,7 +27,8 @@ public partial class TerminalPanel : UserControl
         InitializeComponent();
         // Do not LaunchProcess on AttachedToVisualTree — the panel stays in the
         // tree while hidden, and Iciclecreek NRE's MaxScrollback before the
-        // TerminalView emulator exists (OnInitialized).
+        // TerminalView emulator exists (OnInitialized). Keep Process="" in XAML
+        // so TerminalView.OnLoaded (async void) does not auto-spawn.
         PropertyChanged += OnPropertyChanged;
     }
 
@@ -46,6 +48,9 @@ public partial class TerminalPanel : UserControl
     {
         if (_started || _launchQueued || Terminal == null || !IsVisible)
             return;
+
+        // Disarm library auto-start until we launch explicitly after IsLoaded.
+        DisarmAutoLaunch();
 
         if (TryBeginLaunch())
             return;
@@ -67,6 +72,13 @@ public partial class TerminalPanel : UserControl
         };
         Terminal.LayoutUpdated += _layoutHandler;
 
+        _loadedHandler = (_, _) =>
+        {
+            if (TryBeginLaunch())
+                StopWaitingForLayout();
+        };
+        Terminal.Loaded += _loadedHandler;
+
         // Background runs after Render, so one backstop covers a layout that
         // already happened before we subscribed.
         Dispatcher.UIThread.Post(() =>
@@ -81,6 +93,11 @@ public partial class TerminalPanel : UserControl
         if (_layoutHandler != null && Terminal != null)
             Terminal.LayoutUpdated -= _layoutHandler;
         _layoutHandler = null;
+
+        if (_loadedHandler != null && Terminal != null)
+            Terminal.Loaded -= _loadedHandler;
+        _loadedHandler = null;
+
         _launchQueued = false;
     }
 
@@ -109,8 +126,11 @@ public partial class TerminalPanel : UserControl
             return false;
 
         // Do not probe MaxScrollback — that getter is the NRE in the crash log.
+        // Require IsLoaded so TerminalView.OnLoaded has already run with Process=""
+        // before we set Process via LaunchProcess (otherwise OnLoaded auto-spawns
+        // on an async void path and faults go unobserved).
         var view = Terminal.GetVisualDescendants().OfType<TerminalView>().FirstOrDefault();
-        return view?.Terminal != null;
+        return view is { Terminal: not null, IsLoaded: true };
     }
 
     private async Task LaunchAsync()
@@ -133,6 +153,27 @@ public partial class TerminalPanel : UserControl
                 TitleBlock.Text = "Terminal failed: " + ex.Message;
             CrashLog.Write(ex, openConsole: false);
         }
+        finally
+        {
+            // LaunchProcess(cwd, shell) sets Process permanently. Clear it so a
+            // later Unloaded/Loaded cycle cannot auto-spawn from async void OnLoaded.
+            DisarmAutoLaunch();
+        }
+    }
+
+    private void DisarmAutoLaunch()
+    {
+        if (Terminal == null)
+            return;
+        try
+        {
+            if (!string.IsNullOrEmpty(Terminal.Process))
+                Terminal.Process = "";
+        }
+        catch
+        {
+            // ignore
+        }
     }
 
     private void OnNewSession(object? sender, RoutedEventArgs e)
@@ -147,6 +188,7 @@ public partial class TerminalPanel : UserControl
             // ignore
         }
 
+        DisarmAutoLaunch();
         _started = false;
         EnsureStarted();
     }
@@ -157,6 +199,7 @@ public partial class TerminalPanel : UserControl
         {
             if (Terminal.IsLive)
                 Terminal.Kill();
+            DisarmAutoLaunch();
             _started = false;
             if (TitleBlock != null)
                 TitleBlock.Text = "Terminal (stopped)";

@@ -71,6 +71,9 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private bool isLargeFile;
 
+    /// <summary>When false, the dock tab close button is disabled (Dock ItemsSource mapping).</summary>
+    public bool CanClose { get; set; } = true;
+
     public LineEndingKind LineEndingKind { get; private set; } = LineEndingKind.Lf;
     public Encoding TextEncoding { get; set; } = FileService.CreateUtf8(false);
     public bool HasBom { get; set; }

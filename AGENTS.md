@@ -110,8 +110,9 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Read-only mode (from file attributes + File menu toggle); status-bar `RO` indicator
 - Large-file guard (above 8 MB): plain open, skip folding / word completion / full-text LSP
 - Duplicate/move line, show whitespace, print (Windows), always on top
-- Session restore (`%APPDATA%/XPad/session.json`)
-- Settings / Preferences sidebar (`%APPDATA%/XPad/settings.json`) — Editor / Saving / Appearance / Formatter / LSP / Updates
+- Session restore (`%APPDATA%/XPad/session.json`); dock chrome layout (`layout.json` via `DockLayoutService`, documents from `Tabs` ItemsSource only)
+- Dock.Avalonia shell: `DockControl` in `MainWindow`, explorer/terminal tools under `ViewModels/Dock/`, `DockLayoutSanitizer` strips saved documents on load
+- Settings / Preferences sidebar (`%APPDATA%/XPad/settings.json`) — Editor / Saving / Appearance / Formatter / LSP / Shortcuts / Updates (`KeyBindings` overrides)
 - View menu: checkable toggles, grouped Split / Zoom / Tabs / Folding / Bookmarks / Theme; Encoding under File; Edit → Transform submenu
 - GitHub Releases updater (`Help → Check for Updates`, optional startup check); publish writes `xpad.install.json` for asset matching; MSIX/Store installs skip GitHub updates (`PackageIdentity`)
 - Windows single-instance + named-pipe file handoff; CLI open-or-create paths (`xpad --help`)
@@ -155,8 +156,9 @@ Manual: tabs + dirty close, dark theme, syntax highlight, Find/Replace, find in 
   `Move-Item`); write files with tools rather than shell redirection when content has special characters.
 - Preserve the MVVM split: views in `Views/`, state and commands in `ViewModels/`, reusable
   logic in `Services/`, small helpers in `Editor/`, and data types in `Models/`.
-- Keep user data under `%APPDATA%/XPad/` (`settings.json`, `session.json`, `recovery/`); do not
+- Keep user data under `%APPDATA%/XPad/` (`settings.json`, `session.json`, `layout.json`, `recovery/`); do not
   hardcode per-user paths.
+- Route window shortcuts through `KeyBindingCatalog` / `KeyBindingApplier` (not hard-coded `Window.KeyBindings`).
 - Keep errors non-fatal for the user: degrade gracefully (e.g., missing LSP servers) and log
   unexpected UI failures instead of terminating the process.
 - Preserve the existing Dark / Light / System / Monokai theme support when changing the UI,

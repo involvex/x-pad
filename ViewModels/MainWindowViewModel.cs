@@ -16,9 +16,15 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dock.Avalonia.Controls;
+using Dock.Model.Avalonia.Controls;
+using Dock.Model.Controls;
+using Dock.Model.Core;
+using Dock.Model.Core.Events;
 using x_pad.Models;
 using x_pad.Services;
 using x_pad.Services.Lsp;
+using x_pad.ViewModels.Dock;
 using x_pad.Views;
 
 namespace x_pad.ViewModels;
@@ -44,6 +50,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _watcherPromptGate;
     private bool _recoveryPromptScheduled;
     private IReadOnlyList<LspDiagnostic> _selectedTabDiagnostics = [];
+    private readonly DockLayoutService _dockLayout = new();
+    private DockControl? _dockControl;
+    private IFactory? _dockFactory;
+    private bool _syncingPanelVisibility;
 
     private sealed class ClosedTabSnapshot
     {
@@ -88,6 +98,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private string theme = "Dark";
 
     public FileTreeViewModel FileTree => _fileTree;
+    public ExplorerToolViewModel ExplorerTool { get; } = new();
+    public TerminalToolViewModel TerminalTool { get; } = new();
     public WorkspaceService Workspace => _workspace;
     public string? WorkspaceRoot => _workspace.Root;
 
@@ -323,17 +335,36 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusText = value ? "Always on Top: On" : "Always on Top: Off";
     }
 
+    partial void OnIsExplorerVisibleChanged(bool value)
+    {
+        if (_syncingPanelVisibility || _dockFactory == null)
+            return;
+
+        if (value)
+            _dockFactory.RestoreDockable("Explorer");
+        else
+            _dockFactory.HideDockable(ExplorerTool);
+    }
+
     partial void OnIsTerminalVisibleChanged(bool value)
     {
         if (!_suppressViewStatus)
             StatusText = value ? "Terminal shown" : "Terminal hidden";
+
+        if (!_syncingPanelVisibility && _dockFactory != null)
+        {
+            if (value)
+                _dockFactory.RestoreDockable("Terminal");
+            else
+                _dockFactory.HideDockable(TerminalTool);
+        }
+
         if (!value)
             return;
 
-        var window = GetMainWindow();
-        var panel = window?.FindControl<TerminalPanel>("TerminalHost");
-        panel?.SetWorkingDirectoryHint(SelectedTab?.FilePath);
-        panel?.EnsureStarted();
+        var panel = TerminalTool.Panel;
+        panel.SetWorkingDirectoryHint(SelectedTab?.FilePath);
+        panel.EnsureStarted();
     }
 
     partial void OnThemeChanged(string value)
@@ -352,9 +383,13 @@ public partial class MainWindowViewModel : ViewModelBase
         NotifySplitProperties();
 
         if (IsTerminalVisible)
+            TerminalTool.Panel.SetWorkingDirectoryHint(value?.FilePath);
+
+        if (_dockFactory != null && value != null)
         {
-            var panel = GetMainWindow()?.FindControl<TerminalPanel>("TerminalHost");
-            panel?.SetWorkingDirectoryHint(value?.FilePath);
+            var container = _dockFactory.GetContainerFromItem(value);
+            if (container != null)
+                _dockFactory.SetActiveDockable(container);
         }
 
         ScheduleStartupUpdateCheck();
@@ -904,6 +939,11 @@ public partial class MainWindowViewModel : ViewModelBase
         var tab = parameter as DocumentViewModel ?? SelectedTab;
         if (tab == null) return;
 
+        await CloseTabCoreAsync(tab);
+    }
+
+    private async Task CloseTabCoreAsync(DocumentViewModel tab)
+    {
         if (!await ConfirmCloseAsync(tab))
             return;
 
@@ -1192,7 +1232,7 @@ public partial class MainWindowViewModel : ViewModelBase
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right
         };
         ok.Click += (_, _) => dialog.Close();
-        DockPanel.SetDock(ok, Dock.Bottom);
+        DockPanel.SetDock(ok, Avalonia.Controls.Dock.Bottom);
 
         dialog.Content = new DockPanel
         {
@@ -2624,7 +2664,10 @@ public partial class MainWindowViewModel : ViewModelBase
             s.FormatExtensions = dialog.Result.FormatExtensions;
             s.LanguageServers = dialog.Result.LanguageServers;
             s.CheckForUpdatesOnStartup = dialog.Result.CheckForUpdatesOnStartup;
+            s.KeyBindings = dialog.Result.KeyBindings;
         });
+
+        GetMainWindow()?.ApplyKeyBindings();
 
         _suppressViewStatus = true;
         // WordWrap preference is the default for new tabs; leave open tabs alone.
@@ -2827,7 +2870,7 @@ public partial class MainWindowViewModel : ViewModelBase
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
             Children = { later, openPage, update }
         };
-        DockPanel.SetDock(buttons, Dock.Bottom);
+        DockPanel.SetDock(buttons, Avalonia.Controls.Dock.Bottom);
 
         dialog.Content = new DockPanel
         {
@@ -3228,5 +3271,155 @@ public partial class MainWindowViewModel : ViewModelBase
         Tabs.Add(tab);
         SelectedTab = tab;
         SyncFileWatchers();
+    }
+
+    public void AttachDock(DockControl dockControl)
+    {
+        _dockControl = dockControl;
+        _dockFactory = dockControl.Factory;
+        if (_dockFactory == null)
+            return;
+
+        ExplorerTool.FileTree = FileTree;
+        _dockFactory.HideToolsOnClose = true;
+        if (_dockFactory.ContextLocator != null)
+        {
+            _dockFactory.ContextLocator["Explorer"] = () => ExplorerTool;
+            _dockFactory.ContextLocator["Terminal"] = () => TerminalTool;
+        }
+
+        _dockFactory.DockableClosing += OnDockableClosing;
+        _dockFactory.DockableClosed += OnDockableClosed;
+        _dockFactory.ActiveDockableChanged += OnActiveDockableChanged;
+
+        TryApplySavedLayout(dockControl);
+        EnsureToolsRegistered();
+        BindDocumentDockItemsSource();
+        ApplyPanelVisibilityFromState();
+    }
+
+    public void SaveDockLayout()
+    {
+        if (_dockControl?.Layout is IDockable layout)
+            _dockLayout.TrySave(layout);
+    }
+
+    private void TryApplySavedLayout(DockControl dockControl)
+    {
+        if (_dockLayout.TryLoadRoot() is not IRootDock loaded)
+            return;
+
+        try
+        {
+            DockLayoutSanitizer.StripItemsSourceDocuments(loaded);
+            dockControl.Layout = loaded;
+        }
+        catch
+        {
+            _dockLayout.Delete();
+        }
+    }
+
+    private void BindDocumentDockItemsSource()
+    {
+        var docDock = _dockFactory?.GetDockable<DocumentDock>("Documents");
+        if (docDock != null)
+            docDock.ItemsSource = Tabs;
+    }
+
+    private void EnsureToolsRegistered()
+    {
+        if (_dockFactory == null)
+            return;
+
+        RegisterToolInDock("ExplorerToolDock", ExplorerTool);
+        RegisterToolInDock("TerminalToolDock", TerminalTool);
+    }
+
+    private void RegisterToolInDock(string dockId, Tool tool)
+    {
+        var dock = _dockFactory!.GetDockable<IDock>(dockId);
+        if (dock == null)
+            return;
+
+        var existing = _dockFactory.GetDockable<IDockable>(tool.Id);
+        if (existing != null && !ReferenceEquals(existing, tool))
+            _dockFactory.RemoveDockable(existing, collapse: false);
+
+        if (dock.VisibleDockables?.Contains(tool) != true)
+            _dockFactory.AddDockable(dock, tool);
+    }
+
+    private void ApplyPanelVisibilityFromState()
+    {
+        if (_dockFactory == null)
+            return;
+
+        _syncingPanelVisibility = true;
+        try
+        {
+            if (IsExplorerVisible)
+                _dockFactory.RestoreDockable("Explorer");
+            else
+                _dockFactory.HideDockable(ExplorerTool);
+
+            if (IsTerminalVisible)
+                _dockFactory.RestoreDockable("Terminal");
+            else
+                _dockFactory.HideDockable(TerminalTool);
+        }
+        finally
+        {
+            _syncingPanelVisibility = false;
+        }
+    }
+
+    private void OnDockableClosing(object? sender, DockableClosingEventArgs e)
+    {
+        if (e.Dockable is not IDocument doc || doc.Context is not DocumentViewModel tab)
+            return;
+
+        e.Cancel = true;
+        Dispatcher.UIThread.Post(() => _ = CloseTabCoreAsync(tab));
+    }
+
+    private void OnDockableClosed(object? sender, DockableClosedEventArgs e)
+    {
+        if (e.Dockable?.Id == ExplorerTool.Id)
+        {
+            _syncingPanelVisibility = true;
+            try
+            {
+                IsExplorerVisible = false;
+            }
+            finally
+            {
+                _syncingPanelVisibility = false;
+            }
+
+            return;
+        }
+
+        if (e.Dockable?.Id == TerminalTool.Id)
+        {
+            _syncingPanelVisibility = true;
+            try
+            {
+                IsTerminalVisible = false;
+            }
+            finally
+            {
+                _syncingPanelVisibility = false;
+            }
+        }
+    }
+
+    private void OnActiveDockableChanged(object? sender, ActiveDockableChangedEventArgs e)
+    {
+        if (e.Dockable is IDocument doc && doc.Context is DocumentViewModel tab &&
+            !ReferenceEquals(SelectedTab, tab))
+        {
+            SelectedTab = tab;
+        }
     }
 }

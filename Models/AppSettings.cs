@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace x_pad.Models;
@@ -56,4 +57,10 @@ public sealed class AppSettings
         ["javascript"] = "typescript-language-server --stdio",
         ["python"] = "pyright-langserver --stdio"
     };
+
+    /// <summary>
+    /// Optional key-binding overrides keyed by <see cref="Services.KeyBindingCatalog"/> id.
+    /// Missing or blank entries use the catalog default.
+    /// </summary>
+    public Dictionary<string, string> KeyBindings { get; set; } = new(StringComparer.Ordinal);
 }

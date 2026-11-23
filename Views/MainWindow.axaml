@@ -2,6 +2,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:x_pad.ViewModels"
         xmlns:views="using:x_pad.Views"
+        xmlns:dock="using:Dock.Avalonia.Controls"
+        xmlns:dockFactory="using:Dock.Model.Avalonia"
+        xmlns:dockModel="using:Dock.Model.Avalonia.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
@@ -20,60 +23,7 @@
         <vm:MainWindowViewModel />
     </Design.DataContext>
 
-    <Window.KeyBindings>
-        <KeyBinding Gesture="Ctrl+Tab" Command="{Binding NextTabCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+Tab" Command="{Binding PreviousTabCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+PageUp" Command="{Binding MoveTabLeftCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+PageDown" Command="{Binding MoveTabRightCommand}" />
-        <KeyBinding Gesture="Ctrl+N" Command="{Binding NewTabCommand}" />
-        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+O" Command="{Binding OpenFolderCommand}" />
-        <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveFileCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveFileAsCommand}" />
-        <KeyBinding Gesture="Ctrl+W" Command="{Binding CloseTabCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+T" Command="{Binding ReopenClosedTabCommand}" />
-        <KeyBinding Gesture="Ctrl+J" Command="{Binding JoinLinesCommand}" />
-        <KeyBinding Gesture="Ctrl+F" Command="{Binding FindCommand}" />
-        <KeyBinding Gesture="Ctrl+H" Command="{Binding ReplaceCommand}" />
-        <KeyBinding Gesture="F3" Command="{Binding FindNextCommand}" />
-        <KeyBinding Gesture="Shift+F3" Command="{Binding FindPreviousCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding FindInOpenTabsCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+H" Command="{Binding FindInFolderCommand}" />
-        <KeyBinding Gesture="Ctrl+G" Command="{Binding GoToLineCommand}" />
-        <KeyBinding Gesture="F12" Command="{Binding GoToDefinitionCommand}" />
-        <KeyBinding Gesture="Shift+F12" Command="{Binding FindReferencesCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+OemPeriod" Command="{Binding ShowDocumentOutlineCommand}" />
-        <KeyBinding Gesture="Ctrl+OemPeriod" Command="{Binding ShowCodeActionsCommand}" />
-        <KeyBinding Gesture="F5" Command="{Binding InsertDateTimeCommand}" />
-        <KeyBinding Gesture="Alt+Z" Command="{Binding ToggleWordWrapCommand}" />
-        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenPreferencesCommand}" />
-        <KeyBinding Gesture="Ctrl+P" Command="{Binding PrintCommand}" />
-        <KeyBinding Gesture="Ctrl+OemTilde" Command="{Binding ToggleTerminalCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+P" Command="{Binding OpenCommandPaletteCommand}" />
-        <KeyBinding Gesture="Ctrl+E" Command="{Binding OpenQuickOpenCommand}" />
-        <KeyBinding Gesture="Ctrl+D" Command="{Binding DuplicateLineCommand}" />
-        <KeyBinding Gesture="Alt+Up" Command="{Binding MoveLineUpCommand}" />
-        <KeyBinding Gesture="Alt+Down" Command="{Binding MoveLineDownCommand}" />
-        <KeyBinding Gesture="Ctrl+M" Command="{Binding JumpToMatchingBracketCommand}" />
-        <KeyBinding Gesture="Ctrl+Alt+Right" Command="{Binding AddNextOccurrenceCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+L" Command="{Binding SelectAllOccurrencesCommand}" />
-        <KeyBinding Gesture="Ctrl+L" Command="{Binding SelectCurrentLineCommand}" />
-        <KeyBinding Gesture="Ctrl+Space" Command="{Binding TriggerCompletionsCommand}" />
-        <KeyBinding Gesture="Ctrl+OemQuestion" Command="{Binding ToggleLineCommentCommand}" />
-        <KeyBinding Gesture="Ctrl+Divide" Command="{Binding ToggleLineCommentCommand}" />
-        <KeyBinding Gesture="Shift+Alt+F" Command="{Binding FormatDocumentCommand}" />
-        <KeyBinding Gesture="Ctrl+U" Command="{Binding UpperCaseCommand}" />
-        <KeyBinding Gesture="Ctrl+Shift+U" Command="{Binding LowerCaseCommand}" />
-        <KeyBinding Gesture="Ctrl+F2" Command="{Binding ToggleBookmarkCommand}" />
-        <KeyBinding Gesture="F2" Command="{Binding NextBookmarkCommand}" />
-        <KeyBinding Gesture="Shift+F2" Command="{Binding PreviousBookmarkCommand}" />
-        <KeyBinding Gesture="Ctrl+OemPlus" Command="{Binding ZoomInCommand}" />
-        <KeyBinding Gesture="Ctrl+Add" Command="{Binding ZoomInCommand}" />
-        <KeyBinding Gesture="Ctrl+OemMinus" Command="{Binding ZoomOutCommand}" />
-        <KeyBinding Gesture="Ctrl+Subtract" Command="{Binding ZoomOutCommand}" />
-        <KeyBinding Gesture="Ctrl+D0" Command="{Binding ZoomResetCommand}" />
-        <KeyBinding Gesture="Ctrl+NumPad0" Command="{Binding ZoomResetCommand}" />
-    </Window.KeyBindings>
+    <!-- KeyBindings are applied at runtime from KeyBindingCatalog + settings overrides. -->
 
     <ThemeVariantScope x:Name="AppChromeScope" RequestedThemeVariant="Dark">
     <DockPanel>
@@ -403,104 +353,37 @@
             </Grid>
         </Border>
 
-        <Grid RowDefinitions="*,Auto,Auto">
-            <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*">
-                <Border Grid.Column="0"
-                        Width="240"
-                        IsVisible="{Binding IsExplorerVisible}"
-                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="0,0,1,0"
-                        Background="{DynamicResource XPadChromeAltBrush}">
-                    <views:FileTreePanel x:Name="FileTreeHost"
-                                         DataContext="{Binding FileTree}" />
-                </Border>
-                <GridSplitter Grid.Column="1"
-                              Width="4"
-                              ResizeDirection="Columns"
-                              IsVisible="{Binding IsExplorerVisible}" />
-            <TabControl Grid.Column="2"
-                        x:Name="DocumentTabs"
-                        ItemsSource="{Binding Tabs}"
-                        SelectedItem="{Binding SelectedTab}"
-                        Padding="0"
-                        TabStripPlacement="Top"
-                        Margin="0">
-                <TabControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:DocumentViewModel">
-                        <StackPanel Orientation="Horizontal"
-                                    Spacing="6"
-                                    Background="Transparent"
-                                    PointerPressed="OnTabPointerPressed">
-                            <TextBlock Text="{Binding Title}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,2,0">
-                                <TextBlock.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="Copy Full Path"
-                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CopyFullPathCommand}" />
-                                        <MenuItem Header="Reveal in Explorer"
-                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RevealInExplorerCommand}" />
-                                        <Separator />
-                                        <MenuItem Header="Open With">
-                                            <MenuItem Header="Visual Studio Code"
-                                                      Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenWithVsCodeCommand}"
-                                                      CommandParameter="{Binding}" />
-                                            <MenuItem Header="Cursor"
-                                                      Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenWithCursorCommand}"
-                                                      CommandParameter="{Binding}" />
-                                            <MenuItem Header="Windows Terminal"
-                                                      Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenWithWindowsTerminalCommand}"
-                                                      CommandParameter="{Binding}" />
-                                        </MenuItem>
-                                        <MenuItem Header="Add to Favorites"
-                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).AddFavoriteCommand}"
-                                                  CommandParameter="{Binding}" />
-                                        <MenuItem Header="Remove from Favorites"
-                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RemoveFavoriteCommand}"
-                                                  CommandParameter="{Binding}" />
-                                        <Separator />
-                                        <MenuItem Header="Close"
-                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
-                                                  CommandParameter="{Binding}" />
-                                        <MenuItem Header="Close Others"
-                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseOthersCommand}" />
-                                        <MenuItem Header="Close All"
-                                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseAllCommand}" />
-                                    </ContextMenu>
-                                </TextBlock.ContextMenu>
-                            </TextBlock>
-                            <Button Content="×"
-                                    Width="22"
-                                    Height="22"
-                                    Padding="0"
-                                    FontSize="14"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    VerticalAlignment="Center"
-                                    ToolTip.Tip="Close"
-                                    Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
-                                    CommandParameter="{Binding}" />
-                        </StackPanel>
-                    </DataTemplate>
-                </TabControl.ItemTemplate>
-                <TabControl.ContentTemplate>
-                    <DataTemplate x:DataType="vm:DocumentViewModel">
-                        <views:DocumentEditor />
-                    </DataTemplate>
-                </TabControl.ContentTemplate>
-            </TabControl>
-            </Grid>
-
-            <GridSplitter Grid.Row="1"
-                          Height="4"
-                          ResizeDirection="Rows"
-                          IsVisible="{Binding IsTerminalVisible}" />
-
-            <views:TerminalPanel Grid.Row="2"
-                                 x:Name="TerminalHost"
-                                 Height="220"
-                                 IsVisible="{Binding IsTerminalVisible}" />
-        </Grid>
+        <dock:DockControl x:Name="DockHost"
+                          InitializeLayout="True"
+                          InitializeFactory="True">
+            <dock:DockControl.Factory>
+                <dockFactory:Factory />
+            </dock:DockControl.Factory>
+            <dockModel:RootDock Id="Root" IsCollapsable="False">
+                <dockModel:ProportionalDock x:Name="MainDock" Orientation="Vertical">
+                    <dockModel:ProportionalDock Orientation="Horizontal">
+                        <dockModel:ToolDock Id="ExplorerToolDock"
+                                            Alignment="Left"
+                                            Proportion="0.22" />
+                        <dockModel:ProportionalDockSplitter />
+                        <dockModel:DocumentDock Id="Documents"
+                                                CanCreateDocument="False"
+                                                ItemsSource="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).Tabs}">
+                            <dockModel:DocumentDock.DocumentTemplate>
+                                <dockModel:DocumentTemplate>
+                                    <Panel x:DataType="dockModel:Document">
+                                        <views:DocumentEditor DataContext="{Binding Context}"
+                                                               x:DataType="vm:DocumentViewModel" />
+                                    </Panel>
+                                </dockModel:DocumentTemplate>
+                            </dockModel:DocumentDock.DocumentTemplate>
+                        </dockModel:DocumentDock>
+                    </dockModel:ProportionalDock>
+                    <dockModel:ProportionalDockSplitter />
+                    <dockModel:ToolDock Id="TerminalToolDock" Proportion="0.28" />
+                </dockModel:ProportionalDock>
+            </dockModel:RootDock>
+        </dock:DockControl>
     </DockPanel>
     </ThemeVariantScope>
 </Window>
