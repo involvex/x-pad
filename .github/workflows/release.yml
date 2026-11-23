@@ -65,28 +65,48 @@ jobs:
 
   store:
     needs: publish-win-x64
-    if: >-
-      secrets.PARTNER_CENTER_TENANT_ID != '' &&
-      secrets.PARTNER_CENTER_SELLER_ID != '' &&
-      secrets.PARTNER_CENTER_CLIENT_ID != '' &&
-      secrets.PARTNER_CENTER_CLIENT_SECRET != ''
     runs-on: windows-latest
+    env:
+      PARTNER_CENTER_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
+      PARTNER_CENTER_SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
+      PARTNER_CENTER_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+      PARTNER_CENTER_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
     steps:
+      # secrets cannot be referenced in job-level if:; hoist to env and gate steps.
+      - name: Check Partner Center secrets
+        id: gate
+        shell: pwsh
+        run: |
+          $ready =
+            -not [string]::IsNullOrWhiteSpace($env:PARTNER_CENTER_TENANT_ID) -and
+            -not [string]::IsNullOrWhiteSpace($env:PARTNER_CENTER_SELLER_ID) -and
+            -not [string]::IsNullOrWhiteSpace($env:PARTNER_CENTER_CLIENT_ID) -and
+            -not [string]::IsNullOrWhiteSpace($env:PARTNER_CENTER_CLIENT_SECRET)
+          if (-not $ready) {
+            Write-Host "Partner Center secrets missing — skipping Store submit."
+          }
+          "ready=$($ready.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Checkout
+        if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v4
 
       - name: Setup .NET
+        if: steps.gate.outputs.ready == 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
       - name: Pack unsigned Store MSIX
+        if: steps.gate.outputs.ready == 'true'
         run: pwsh scripts/publish-msix.ps1 -SkipSign
 
       - name: Setup Microsoft Store Developer CLI
+        if: steps.gate.outputs.ready == 'true'
         uses: microsoft/microsoft-store-apppublisher@v1.4
 
       - name: Submit to the Store
+        if: steps.gate.outputs.ready == 'true'
         shell: pwsh
         run: |
           msstore reconfigure `
@@ -97,8 +117,3 @@ jobs:
           $msix = Get-ChildItem publish\xpad-*-win-x64.msix | Select-Object -First 1
           if (-not $msix) { throw "No MSIX found under publish/" }
           msstore publish $msix.FullName -id 9P88NMM8F1WL
-        env:
-          PARTNER_CENTER_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
-          PARTNER_CENTER_SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
-          PARTNER_CENTER_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
-          PARTNER_CENTER_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
