@@ -7,6 +7,11 @@
 
 
 
+
+## 0.5.4 - 2026-11-23
+
+- fix(ui): restore dock explorer, terminal, and document tabs
+- fix(ui): restore dock explorer, terminal, and document tabs
 ## 0.5.3 - 2026-11-23
 
 - feat(ui): add dockable shell and Preferences Shortcuts
