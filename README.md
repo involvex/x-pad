@@ -21,7 +21,7 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 - Backup on save (`.bak`), optional autosave
 - Optional external formatter (`$FILE` command, format on save)
 
-Settings and recovery live under `%APPDATA%\XPad\` (`settings.json`, `session.json`, `recovery/`).
+Settings and recovery live under `%APPDATA%\XPad\` (`settings.json`, `session.json`, `layout.json`, `recovery/`). The main window uses a dockable layout (explorer, editor tabs, terminal); splitter positions and tool visibility are saved to `layout.json` on exit. Open document tabs come from `session.json` / your session, not from the dock layout file.
 
 ## Run
 
@@ -79,7 +79,7 @@ pwsh scripts/publish-msix.ps1 `
 
 Requires the Windows 10/11 SDK (`makeappx` / `signtool`). Output: `publish/xpad-<version>-win-x64.msix`. The Store re-signs the package; do not attach the MSIX to GitHub Releases (zip releases stay unchanged). A Store/MSIX install skips the GitHub updater and is updated by the Store. Listing still needs screenshots, 1:1 box art, a privacy-policy URL ([site/privacy.html](https://involvex.github.io/x-pad/privacy.html)), and the IARC age rating.
 
-A `v*` tag (or a manual run of the [release workflow](.github/workflows/release.yml)) also packs that MSIX and submits product **9P88NMM8F1WL** via the Microsoft Store Developer CLI when these repository secrets are set: `PARTNER_CENTER_TENANT_ID`, `PARTNER_CENTER_SELLER_ID`, `PARTNER_CENTER_CLIENT_ID`, `PARTNER_CENTER_CLIENT_SECRET`. If any secret is missing, Store submit steps are skipped; zip GitHub Releases are unchanged.
+A `v*` tag (or a manual run of the [release workflow](.github/workflows/release.yml)) also packs that MSIX and submits product **9P88NMM8F1WL** via the Microsoft Store Developer CLI when these repository secrets are set: `PARTNER_CENTER_TENANT_ID`, `PARTNER_CENTER_SELLER_ID`, `PARTNER_CENTER_CLIENT_ID`, `PARTNER_CENTER_CLIENT_SECRET`. If any secret is missing, Store submit steps are skipped; zip GitHub Releases are unchanged. An in-progress submission started in the Partner Center UI blocks the release Store job until that draft is deleted in the dashboard (the submission API cannot remove portal-created drafts).
 
 ## Cut a release
 
@@ -98,9 +98,10 @@ Stored under `%APPDATA%\XPad\`:
 
 - `settings.json` — editor prefs, LSP commands, recent files, update prefs
 - `session.json` — last open files + caret positions
+- `layout.json` — dock splitter positions and tool panel state (not open file tabs)
 - `recovery/` — dirty/untitled buffer snapshots (cleared on clean exit)
 
-Preferences (`Ctrl+,`) use a sidebar: Editor, Saving, Appearance, Formatter, Language servers, Updates.
+Preferences (`Ctrl+,`) use a sidebar: Editor, Saving, Appearance, Formatter, Language servers, Shortcuts, Updates. Shortcut overrides are stored in `settings.json` (`KeyBindings`); blank/missing entries keep the built-in defaults.
 
 ## Updates
 

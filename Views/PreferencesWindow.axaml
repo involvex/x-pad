@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:x_pad.ViewModels"
         x:Class="x_pad.Views.PreferencesWindow"
+        x:Name="RootWindow"
         x:DataType="vm:PreferencesViewModel"
         Title="Preferences"
         Width="720"
@@ -149,6 +150,47 @@
                                  TextWrapping="NoWrap"
                                  FontFamily="Cascadia Code, Consolas, monospace"
                                  FontSize="12" />
+                    </StackPanel>
+
+                    <!-- Shortcuts -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsShortcutsPage}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="Shortcuts" FontWeight="SemiBold" FontSize="16"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Content="Reset all"
+                                    Command="{Binding ResetAllShortcutsCommand}" />
+                        </Grid>
+                        <TextBlock Text="Click a gesture field and press the new keys. Capture does not run the command."
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ShortcutConflict}"
+                                   Foreground="#E81123"
+                                   TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding ShortcutBindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShortcutBindingItem">
+                                    <Grid ColumnDefinitions="*,180,Auto" Margin="0,0,0,8" ColumnSpacing="8">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Title}"
+                                                   VerticalAlignment="Center"
+                                                   TextWrapping="Wrap" />
+                                        <TextBox Grid.Column="1"
+                                                 Classes="shortcutCapture"
+                                                 Text="{Binding Gesture}"
+                                                 FontFamily="Cascadia Code, Consolas, monospace"
+                                                 FontSize="12"
+                                                 IsReadOnly="True"
+                                                 PlaceholderText="Press keys…" />
+                                        <Button Grid.Column="2"
+                                                Content="Reset"
+                                                Command="{Binding #RootWindow.((vm:PreferencesViewModel)DataContext).ResetShortcutCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
 
                     <!-- Updates -->

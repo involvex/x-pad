@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using x_pad.Models;
 using x_pad.ViewModels;
@@ -22,12 +23,47 @@ public partial class PreferencesWindow : Window
         _original = settings;
         InitializeComponent();
         DataContext = new PreferencesViewModel(settings, checkUpdates);
+        AddHandler(InputElement.KeyDownEvent, OnShortcutCaptureKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void OnShortcutCaptureKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Source is not TextBox box || !box.Classes.Contains("shortcutCapture"))
+            return;
+        if (box.DataContext is not ShortcutBindingItem item)
+            return;
+
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
+            or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.Tab)
+            return;
+
+        if (e.Key == Key.Escape)
+        {
+            item.Gesture = item.DefaultGesture;
+            e.Handled = true;
+            if (DataContext is PreferencesViewModel escVm)
+                escVm.ValidateShortcuts();
+            return;
+        }
+
+        item.Gesture = new KeyGesture(e.Key, e.KeyModifiers).ToString();
+        e.Handled = true;
+        if (DataContext is PreferencesViewModel vm)
+            vm.ValidateShortcuts();
     }
 
     private void OnSave(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is PreferencesViewModel vm)
-            Result = vm.ToSettings(_original);
+        if (DataContext is not PreferencesViewModel vm)
+        {
+            Close(false);
+            return;
+        }
+
+        if (vm.ValidateShortcuts() != null)
+            return;
+
+        Result = vm.ToSettings(_original);
         Close(true);
     }
 
