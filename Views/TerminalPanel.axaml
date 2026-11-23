@@ -46,6 +46,7 @@
             </Grid>
         </Border>
         <terminal:TerminalControl x:Name="Terminal"
+                                  Process=""
                                   FontFamily="Cascadia Mono, Cascadia Code, Consolas, monospace"
                                   FontSize="13"
                                   BufferSize="2000"

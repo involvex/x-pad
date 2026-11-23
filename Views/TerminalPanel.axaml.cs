@@ -1,10 +1,14 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Iciclecreek.Terminal;
+using x_pad.Services;
 
 namespace x_pad.Views;
 
@@ -13,6 +17,7 @@ public partial class TerminalPanel : UserControl
     private bool _started;
     private bool _launchQueued;
     private string? _cwdHint;
+    private EventHandler? _layoutHandler;
 
     public event EventHandler? HideRequested;
 
@@ -20,7 +25,8 @@ public partial class TerminalPanel : UserControl
     {
         InitializeComponent();
         // Do not LaunchProcess on AttachedToVisualTree — the panel stays in the
-        // tree while hidden, and Iciclecreek NRE's MaxScrollback before layout.
+        // tree while hidden, and Iciclecreek NRE's MaxScrollback before the
+        // TerminalView emulator exists (OnInitialized).
         PropertyChanged += OnPropertyChanged;
     }
 
@@ -41,30 +47,83 @@ public partial class TerminalPanel : UserControl
         if (_started || _launchQueued || Terminal == null || !IsVisible)
             return;
 
-        _launchQueued = true;
-        // Wait until the control has a real size so TerminalView viewport exists.
-        Dispatcher.UIThread.Post(TryLaunchWhenReady, DispatcherPriority.Loaded);
+        if (TryBeginLaunch())
+            return;
+
+        WaitForEmulatorThenLaunch();
     }
 
-    private void TryLaunchWhenReady()
+    private void WaitForEmulatorThenLaunch()
     {
+        if (Terminal == null || _launchQueued)
+            return;
+
+        _launchQueued = true;
+
+        _layoutHandler = (_, _) =>
+        {
+            if (TryBeginLaunch())
+                StopWaitingForLayout();
+        };
+        Terminal.LayoutUpdated += _layoutHandler;
+
+        // Background runs after Render, so one backstop covers a layout that
+        // already happened before we subscribed.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (TryBeginLaunch())
+                StopWaitingForLayout();
+        }, DispatcherPriority.Background);
+    }
+
+    private void StopWaitingForLayout()
+    {
+        if (_layoutHandler != null && Terminal != null)
+            Terminal.LayoutUpdated -= _layoutHandler;
+        _layoutHandler = null;
         _launchQueued = false;
+    }
+
+    /// <summary>
+    /// Starts the shell when the emulator is ready. Returns true when waiting
+    /// should stop (launched, aborted, or already started).
+    /// </summary>
+    private bool TryBeginLaunch()
+    {
+        if (_started || Terminal == null || !IsVisible)
+            return true;
+
+        if (!IsEmulatorReady())
+            return false;
+
+        StopWaitingForLayout();
+        _ = LaunchAsync();
+        return true;
+    }
+
+    private bool IsEmulatorReady()
+    {
+        if (Terminal == null || !IsVisible)
+            return false;
+        if (Terminal.Bounds.Width < 8 || Terminal.Bounds.Height < 8)
+            return false;
+
+        // Do not probe MaxScrollback — that getter is the NRE in the crash log.
+        var view = Terminal.GetVisualDescendants().OfType<TerminalView>().FirstOrDefault();
+        return view?.Terminal != null;
+    }
+
+    private async Task LaunchAsync()
+    {
         if (_started || Terminal == null || !IsVisible)
             return;
 
-        if (Terminal.Bounds.Width < 8 || Terminal.Bounds.Height < 8)
-        {
-            _launchQueued = true;
-            Dispatcher.UIThread.Post(TryLaunchWhenReady, DispatcherPriority.Background);
-            return;
-        }
-
+        _started = true;
         try
         {
             var shell = ResolveShell();
             var cwd = ResolveStartDirectory();
-            Terminal.LaunchProcess(cwd, shell);
-            _started = true;
+            await Terminal.LaunchProcess(cwd, shell);
             UpdateTitle();
         }
         catch (Exception ex)
@@ -72,6 +131,7 @@ public partial class TerminalPanel : UserControl
             _started = false;
             if (TitleBlock != null)
                 TitleBlock.Text = "Terminal failed: " + ex.Message;
+            CrashLog.Write(ex, openConsole: false);
         }
     }
 
@@ -168,7 +228,7 @@ public partial class TerminalPanel : UserControl
     private static string? ExternalAppLauncherResolve(string exe)
     {
         var baseName = Path.GetFileNameWithoutExtension(exe);
-        return Services.ExternalAppLauncher.ResolveCommand(baseName)
-               ?? Services.ExternalAppLauncher.ResolveCommand(exe);
+        return ExternalAppLauncher.ResolveCommand(baseName)
+               ?? ExternalAppLauncher.ResolveCommand(exe);
     }
 }
