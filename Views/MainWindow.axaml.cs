@@ -119,13 +119,12 @@ public partial class MainWindow : Window
         if (_fileTreeWired)
             return;
 
-        if (this.GetVisualDescendants().OfType<FileTreePanel>().FirstOrDefault() is not { } tree)
+        if (DataContext is not MainWindowViewModel vm)
             return;
 
-        tree.FileOpenRequested += async (_, path) =>
+        vm.ExplorerTool.Panel.FileOpenRequested += async (_, path) =>
         {
-            if (DataContext is MainWindowViewModel vm)
-                await vm.OpenFileFromPath(path);
+            await vm.OpenFileFromPath(path);
         };
         _fileTreeWired = true;
     }

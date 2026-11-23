@@ -340,10 +340,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_syncingPanelVisibility || _dockFactory == null)
             return;
 
-        if (value)
-            _dockFactory.RestoreDockable("Explorer");
-        else
-            _dockFactory.HideDockable(ExplorerTool);
+        EnsureTool(ExplorerTool, "ExplorerToolDock", value);
     }
 
     partial void OnIsTerminalVisibleChanged(bool value)
@@ -352,12 +349,7 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusText = value ? "Terminal shown" : "Terminal hidden";
 
         if (!_syncingPanelVisibility && _dockFactory != null)
-        {
-            if (value)
-                _dockFactory.RestoreDockable("Terminal");
-            else
-                _dockFactory.HideDockable(TerminalTool);
-        }
+            EnsureTool(TerminalTool, "TerminalToolDock", value);
 
         if (!value)
             return;
@@ -503,6 +495,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Tabs.Add(tab);
         SelectedTab = tab;
         StatusText = "New document";
+        EnsureDocumentsBound();
     }
 
     [RelayCommand]
@@ -3296,6 +3289,7 @@ public partial class MainWindowViewModel : ViewModelBase
         EnsureToolsRegistered();
         BindDocumentDockItemsSource();
         ApplyPanelVisibilityFromState();
+        EnsureDocumentsBound();
     }
 
     public void SaveDockLayout()
@@ -3322,9 +3316,54 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void BindDocumentDockItemsSource()
     {
-        var docDock = _dockFactory?.GetDockable<DocumentDock>("Documents");
-        if (docDock != null)
-            docDock.ItemsSource = Tabs;
+        // GetDockable only consults DockableLocator, which stays empty for the
+        // XAML layout. Walk the live tree so the document dock is actually bound.
+        EnsureDocumentsBound();
+    }
+
+    private EditorDocumentGenerator? _editorDocuments;
+
+    private void EnsureDocumentsBound()
+    {
+        if (_dockControl?.Layout is not IDockable root)
+            return;
+
+        _editorDocuments ??= new EditorDocumentGenerator(_settingsService, _lspManager);
+        foreach (var docDock in EnumerateDockables(root).OfType<DocumentDock>())
+        {
+            if (docDock.Id != "Documents")
+                continue;
+
+            var before = docDock.VisibleDockables?.Count ?? 0;
+            var sameSource = ReferenceEquals(docDock.ItemsSource, Tabs);
+            docDock.ItemContainerGenerator = _editorDocuments;
+            if (!sameSource || (before == 0 && Tabs.Count > 0))
+            {
+                docDock.ItemsSource = null;
+                docDock.ItemsSource = Tabs;
+            }
+        }
+    }
+
+    private void EnsureTool(Tool tool, string dockId, bool visible)
+    {
+        var dock = FindInLayout<IDock>(dockId);
+        var visibleHere = dock?.VisibleDockables?.Contains(tool) == true;
+        var hidden = _dockFactory?.FindRoot(tool, _ => true)?.HiddenDockables?.Contains(tool) == true;
+        if (_dockFactory == null || dock == null)
+            return;
+
+        if (visible)
+        {
+            if (hidden)
+                _dockFactory.RestoreDockable(tool);
+            else if (!visibleHere)
+                _dockFactory.AddDockable(dock, tool);
+        }
+        else if (visibleHere)
+        {
+            _dockFactory.HideDockable(tool);
+        }
     }
 
     private void EnsureToolsRegistered()
@@ -3338,16 +3377,37 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void RegisterToolInDock(string dockId, Tool tool)
     {
-        var dock = _dockFactory!.GetDockable<IDock>(dockId);
+        var dock = FindInLayout<IDock>(dockId);
         if (dock == null)
             return;
 
-        var existing = _dockFactory.GetDockable<IDockable>(tool.Id);
+        var existing = FindInLayout<IDockable>(tool.Id);
         if (existing != null && !ReferenceEquals(existing, tool))
-            _dockFactory.RemoveDockable(existing, collapse: false);
+            _dockFactory!.RemoveDockable(existing, collapse: false);
 
         if (dock.VisibleDockables?.Contains(tool) != true)
-            _dockFactory.AddDockable(dock, tool);
+            _dockFactory!.AddDockable(dock, tool);
+    }
+
+    private T? FindInLayout<T>(string id) where T : class, IDockable
+    {
+        if (_dockControl?.Layout is not IDockable root || string.IsNullOrEmpty(id))
+            return null;
+
+        return EnumerateDockables(root).OfType<T>().FirstOrDefault(d => d.Id == id);
+    }
+
+    private static IEnumerable<IDockable> EnumerateDockables(IDockable node)
+    {
+        yield return node;
+        if (node is not IDock dock || dock.VisibleDockables == null)
+            yield break;
+
+        foreach (var child in dock.VisibleDockables)
+        {
+            foreach (var nested in EnumerateDockables(child))
+                yield return nested;
+        }
     }
 
     private void ApplyPanelVisibilityFromState()
@@ -3358,15 +3418,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _syncingPanelVisibility = true;
         try
         {
-            if (IsExplorerVisible)
-                _dockFactory.RestoreDockable("Explorer");
-            else
-                _dockFactory.HideDockable(ExplorerTool);
-
-            if (IsTerminalVisible)
-                _dockFactory.RestoreDockable("Terminal");
-            else
-                _dockFactory.HideDockable(TerminalTool);
+            EnsureTool(ExplorerTool, "ExplorerToolDock", IsExplorerVisible);
+            EnsureTool(TerminalTool, "TerminalToolDock", IsTerminalVisible);
         }
         finally
         {

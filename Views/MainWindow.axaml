@@ -154,7 +154,8 @@
                          IsChecked="{Binding AlwaysOnTop}" />
                 <MenuItem Header="_Terminal"
                          ToggleType="CheckBox"
-                         IsChecked="{Binding IsTerminalVisible}"
+                         IsChecked="{Binding IsTerminalVisible, Mode=OneWay}"
+                         Command="{Binding ToggleTerminalCommand}"
                          InputGesture="Ctrl+OemTilde" />
                 <MenuItem Header="_Split">
                     <MenuItem Header="_Vertical"
@@ -367,8 +368,7 @@
                                             Proportion="0.22" />
                         <dockModel:ProportionalDockSplitter />
                         <dockModel:DocumentDock Id="Documents"
-                                                CanCreateDocument="False"
-                                                ItemsSource="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).Tabs}">
+                                                CanCreateDocument="False">
                             <dockModel:DocumentDock.DocumentTemplate>
                                 <dockModel:DocumentTemplate>
                                     <Panel x:DataType="dockModel:Document">

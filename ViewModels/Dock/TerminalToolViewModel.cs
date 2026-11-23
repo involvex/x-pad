@@ -1,3 +1,4 @@
+using System;
 using Dock.Model.Avalonia.Controls;
 using x_pad.Views;
 
@@ -17,5 +18,7 @@ public sealed class TerminalToolViewModel : Tool
         CanClose = true;
         CanPin = true;
         CanFloat = true;
+        // Dock renders Tool.Content. Application data templates are not used for tools.
+        Content = new Func<IServiceProvider, object>(_ => Panel);
     }
 }
