@@ -1,5 +1,9 @@
 # Changelog
 
+
+## 0.5.6 - 2026-11-24
+
+- feat(ui): fix favorites, explorer home, menus, and unsaved session restore
 ## Unreleased
 
 - fix(ui): Favorites menu Add/Open, tab context actions, Explorer home/last folder

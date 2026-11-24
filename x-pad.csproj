@@ -8,7 +8,7 @@
     <AssemblyName>xpad</AssemblyName>
     <RootNamespace>x_pad</RootNamespace>
     <Product>X-Pad</Product>
-    <Version>0.5.5</Version>
+    <Version>0.5.6</Version>
     <Description>Modern lightweight notepad with AvaloniaEdit</Description>
     <ApplicationIcon>Assets\xpad.ico</ApplicationIcon>
     <DefaultItemExcludes>$(DefaultItemExcludes);x-pad.Tests\**</DefaultItemExcludes>
