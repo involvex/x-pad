@@ -3,6 +3,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Dock.Avalonia.Controls;
 using x_pad.Services;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
         PropertyChanged += OnWindowPropertyChanged;
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DoubleTappedEvent, OnDocumentTabStripDoubleTapped, RoutingStrategies.Bubble);
 
         if (DataContext is MainWindowViewModel vm)
             WireTerminal(vm);
@@ -151,6 +153,23 @@ public partial class MainWindow : Window
         vm.SaveDockLayout();
         _forceClose = true;
         Close();
+    }
+
+    private void OnDocumentTabStripDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Source is not Control source)
+            return;
+
+        // Only empty strip area — not an existing tab header.
+        if (source.FindAncestorOfType<DocumentTabStripItem>(includeSelf: true) != null)
+            return;
+        if (source.FindAncestorOfType<DocumentTabStrip>(includeSelf: true) == null)
+            return;
+
+        if (DataContext is MainWindowViewModel vm)
+            vm.NewTabCommand.Execute(null);
+
+        e.Handled = true;
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)

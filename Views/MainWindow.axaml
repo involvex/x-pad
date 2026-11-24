@@ -25,6 +25,31 @@
 
     <!-- KeyBindings are applied at runtime from KeyBindingCatalog + settings overrides. -->
 
+    <Window.Styles>
+        <Style Selector="dock|DocumentTabStripItem">
+            <!-- Avalonia forbids Control instances as Setter values; Template creates one per tab. -->
+            <Setter Property="DocumentContextMenu">
+                <Template>
+                    <ContextMenu x:DataType="dockModel:Document">
+                        <MenuItem Header="Add to _Favorites"
+                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).AddFavoriteCommand}"
+                                  CommandParameter="{Binding Context}" />
+                        <MenuItem Header="Copy Full _Path"
+                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CopyFullPathCommand}"
+                                  CommandParameter="{Binding Context}" />
+                        <MenuItem Header="Reveal in E_xplorer"
+                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RevealInExplorerCommand}"
+                                  CommandParameter="{Binding Context}" />
+                        <Separator />
+                        <MenuItem Header="_Close Tab"
+                                  Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).CloseTabCommand}"
+                                  CommandParameter="{Binding Context}" />
+                    </ContextMenu>
+                </Template>
+            </Setter>
+        </Style>
+    </Window.Styles>
+
     <ThemeVariantScope x:Name="AppChromeScope" RequestedThemeVariant="Dark">
     <DockPanel>
         <Border DockPanel.Dock="Top"
@@ -47,16 +72,26 @@
                     </MenuItem.Styles>
                 </MenuItem>
                 <MenuItem Header="Clear Recent Files" Command="{Binding ClearRecentFilesCommand}" />
-                <MenuItem Header="_Favorites" ItemsSource="{Binding FavoriteFiles}">
-                    <MenuItem.Styles>
-                        <Style Selector="MenuItem > MenuItem">
-                            <Setter Property="Header" Value="{Binding}" />
-                            <Setter Property="Command" Value="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenFavoriteCommand}" />
-                            <Setter Property="CommandParameter" Value="{Binding}" />
-                        </Style>
-                    </MenuItem.Styles>
+                <MenuItem Header="_Favorites">
+                    <MenuItem Header="_Add Current File"
+                              Command="{Binding AddFavoriteCommand}"
+                              CommandParameter="{Binding SelectedTab}" />
+                    <MenuItem Header="Re_move Current File"
+                              Command="{Binding RemoveFavoriteCommand}"
+                              CommandParameter="{Binding SelectedTab}" />
+                    <Separator />
+                    <MenuItem Header="_Open" ItemsSource="{Binding FavoriteMenuItems}">
+                        <MenuItem.Styles>
+                            <Style Selector="MenuItem > MenuItem" x:DataType="vm:FavoriteMenuItem">
+                                <Setter Property="Header" Value="{Binding Name}" />
+                                <Setter Property="Command" Value="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenFavoriteCommand}" />
+                                <Setter Property="CommandParameter" Value="{Binding Path=Path}" />
+                                <Setter Property="ToolTip.Tip" Value="{Binding Path=Path}" />
+                            </Style>
+                        </MenuItem.Styles>
+                    </MenuItem>
+                    <MenuItem Header="Clear Favorites" Command="{Binding ClearFavoritesCommand}" />
                 </MenuItem>
-                <MenuItem Header="Clear Favorites" Command="{Binding ClearFavoritesCommand}" />
                 <Separator />
                 <MenuItem Header="_Save" Command="{Binding SaveFileCommand}" InputGesture="Ctrl+S" />
                 <MenuItem Header="Save _As..." Command="{Binding SaveFileAsCommand}" InputGesture="Ctrl+Shift+S" />
@@ -95,20 +130,12 @@
                 <MenuItem Header="_Copy" Command="{Binding CopyCommand}" InputGesture="Ctrl+C" />
                 <MenuItem Header="_Paste" Command="{Binding PasteCommand}" InputGesture="Ctrl+V" />
                 <MenuItem Header="Select _All" Command="{Binding SelectAllCommand}" InputGesture="Ctrl+A" />
-                <MenuItem Header="_Invert Selection" Command="{Binding InvertSelectionCommand}" />
-                <MenuItem Header="Search _Web" Command="{Binding SearchWebCommand}" />
                 <Separator />
                 <MenuItem Header="_Duplicate Line" Command="{Binding DuplicateLineCommand}" InputGesture="Shift+Alt+Down" />
                 <MenuItem Header="Move Line _Up" Command="{Binding MoveLineUpCommand}" InputGesture="Alt+Up" />
                 <MenuItem Header="Move Line _Down" Command="{Binding MoveLineDownCommand}" InputGesture="Alt+Down" />
                 <Separator />
-                <MenuItem Header="Jump to Matching _Bracket" Command="{Binding JumpToMatchingBracketCommand}" InputGesture="Ctrl+Shift+OemPipe" />
-                <MenuItem Header="Add Next _Occurrence" Command="{Binding AddNextOccurrenceCommand}" InputGesture="Ctrl+D" />
-                <MenuItem Header="Select All Occurren_ces" Command="{Binding SelectAllOccurrencesCommand}" InputGesture="Ctrl+Shift+L" />
-                <MenuItem Header="Select Current _Line" Command="{Binding SelectCurrentLineCommand}" InputGesture="Ctrl+L" />
-                <MenuItem Header="Trigger _Completions" Command="{Binding TriggerCompletionsCommand}" InputGesture="Ctrl+Space" />
                 <MenuItem Header="Toggle Line _Comment" Command="{Binding ToggleLineCommentCommand}" InputGesture="Ctrl+OemQuestion" />
-                <Separator />
                 <MenuItem Header="_Transform">
                     <MenuItem Header="_Upper Case" Command="{Binding UpperCaseCommand}" InputGesture="Ctrl+U" />
                     <MenuItem Header="_Lower Case" Command="{Binding LowerCaseCommand}" InputGesture="Ctrl+Shift+U" />
@@ -123,14 +150,26 @@
                 </MenuItem>
                 <MenuItem Header="_Format Document" Command="{Binding FormatDocumentCommand}" InputGesture="Shift+Alt+F" />
                 <MenuItem Header="Insert Date/_Time" Command="{Binding InsertDateTimeCommand}" InputGesture="F5" />
-                <Separator />
+            </MenuItem>
+            <MenuItem Header="_Selection">
+                <MenuItem Header="_Invert Selection" Command="{Binding InvertSelectionCommand}" />
+                <MenuItem Header="Select Current _Line" Command="{Binding SelectCurrentLineCommand}" InputGesture="Ctrl+L" />
+                <MenuItem Header="Add Next _Occurrence" Command="{Binding AddNextOccurrenceCommand}" InputGesture="Ctrl+D" />
+                <MenuItem Header="Select All Occurren_ces" Command="{Binding SelectAllOccurrencesCommand}" InputGesture="Ctrl+Shift+L" />
+                <MenuItem Header="Jump to Matching _Bracket" Command="{Binding JumpToMatchingBracketCommand}" InputGesture="Ctrl+Shift+OemPipe" />
+            </MenuItem>
+            <MenuItem Header="F_ind">
                 <MenuItem Header="_Find..." Command="{Binding FindCommand}" InputGesture="Ctrl+F" />
                 <MenuItem Header="Find _Next" Command="{Binding FindNextCommand}" InputGesture="F3" />
                 <MenuItem Header="Find Pre_vious" Command="{Binding FindPreviousCommand}" InputGesture="Shift+F3" />
                 <MenuItem Header="_Replace..." Command="{Binding ReplaceCommand}" InputGesture="Ctrl+H" />
                 <MenuItem Header="Find in Open _Tabs..." Command="{Binding FindInOpenTabsCommand}" InputGesture="Ctrl+Shift+F" />
                 <MenuItem Header="Find in Fol_der..." Command="{Binding FindInFolderCommand}" InputGesture="Ctrl+Shift+H" />
+                <Separator />
                 <MenuItem Header="_Go to Line..." Command="{Binding GoToLineCommand}" InputGesture="Ctrl+G" />
+                <MenuItem Header="Search _Web" Command="{Binding SearchWebCommand}" />
+                <MenuItem Header="Trigger _Completions" Command="{Binding TriggerCompletionsCommand}" InputGesture="Ctrl+Space" />
+                <Separator />
                 <MenuItem Header="Go to _Definition" Command="{Binding GoToDefinitionCommand}" InputGesture="F12" />
                 <MenuItem Header="Find _References" Command="{Binding FindReferencesCommand}" InputGesture="Shift+F12" />
                 <MenuItem Header="Document Out_line..." Command="{Binding ShowDocumentOutlineCommand}" InputGesture="Ctrl+Shift+." />
