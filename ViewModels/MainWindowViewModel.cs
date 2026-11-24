@@ -165,7 +165,13 @@ public partial class MainWindowViewModel : ViewModelBase
         set { if (value) ApplyTheme("Github"); }
     }
 
-    public MainWindowViewModel(string[]? args = null, SettingsService? settings = null)
+    /// <param name="restoreSession">
+    /// When false (File → New Window), start with a blank tab and skip session/crash-recovery ownership.
+    /// </param>
+    public MainWindowViewModel(
+        string[]? args = null,
+        SettingsService? settings = null,
+        bool restoreSession = true)
     {
         _settingsService = settings ?? new SettingsService();
         _lspManager = new LspManager(_settingsService, () => _workspace.Root);
@@ -202,7 +208,8 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!openedFromArgs)
         {
             TryRestoreLastWorkspace();
-            RestoreSession();
+            if (restoreSession)
+                RestoreSession();
         }
 
         if (Tabs.Count == 0)
@@ -213,13 +220,20 @@ public partial class MainWindowViewModel : ViewModelBase
         ConfigureAutosaveTimer();
         _settingsService.Changed += ConfigureAutosaveTimer;
 
-        _recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _recoveryTimer.Tick += (_, _) => PersistRecoverySnapshots();
-        _recoveryTimer.Start();
-
         _fileWatcher.FileChanged += OnWatchedFileChanged;
         SyncFileWatchers();
-        ScheduleRecoveryPrompt();
+
+        if (restoreSession)
+        {
+            _recoveryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            _recoveryTimer.Tick += (_, _) => PersistRecoverySnapshots();
+            _recoveryTimer.Start();
+            ScheduleRecoveryPrompt();
+        }
+        else
+        {
+            _recoveryTimer = new DispatcherTimer();
+        }
     }
 
     private void OnWorkspaceChanged(object? sender, EventArgs e)
@@ -497,7 +511,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void BringMainWindowToFront()
     {
         TrayService.ShowMainWindow();
-        var window = GetMainWindow();
+        var window = GetHostWindow();
         if (window == null)
             return;
 
@@ -525,7 +539,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenFile()
     {
-        var topLevel = GetMainWindow();
+        var topLevel = GetHostWindow();
         if (topLevel == null) return;
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
@@ -541,7 +555,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenFolder()
     {
-        var topLevel = GetMainWindow();
+        var topLevel = GetHostWindow();
         if (topLevel == null) return;
 
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
@@ -629,7 +643,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -836,7 +850,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
 
         // Prefer the live editor so undo stack stays coherent with the visible buffer.
-        var editor = GetMainWindow()?.FindDocumentEditor(tab) ??
+        var editor = GetHostWindow()?.FindDocumentEditor(tab) ??
                      (ReferenceEquals(tab, SelectedTab) ? GetSelectedEditor() : null);
         if (editor != null)
         {
@@ -867,7 +881,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task<bool> SaveTabAsAsync(DocumentViewModel tab, bool runFormatOnSave = true)
     {
-        var topLevel = GetMainWindow();
+        var topLevel = GetHostWindow();
         if (topLevel == null) return false;
 
         var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -964,7 +978,7 @@ public partial class MainWindowViewModel : ViewModelBase
             tab.PendingRestoreLine = line;
             tab.PendingRestoreColumn = column;
             tab.ApplySnapshot(snapshot, tab.FilePath, settings.InsertSpaces);
-            var editor = GetMainWindow()?.FindDocumentEditor(tab) ??
+            var editor = GetHostWindow()?.FindDocumentEditor(tab) ??
                          (ReferenceEquals(tab, SelectedTab) ? GetSelectedEditor() : null);
             editor?.RefreshEditorOptions();
             editor?.RestorePendingCaret();
@@ -1149,9 +1163,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 return false;
         }
 
-        // Persist open tabs (including discarded unsaved buffers) before clearing crash recovery.
-        SaveSession();
-        _recoveryService.MarkCleanExit();
+        // Only the last window writes session + clears crash recovery so New Window
+        // closings do not wipe the primary session mid-flight.
+        if (IsLastMainWindow())
+        {
+            SaveSession();
+            _recoveryService.MarkCleanExit();
+        }
+
         _fileWatcher.Dispose();
         return true;
     }
@@ -1161,7 +1180,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!tab.IsDirty)
             return true;
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return true;
 
@@ -1263,7 +1282,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task ShowAbout()
     {
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -1438,7 +1457,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var top = GetMainWindow();
+        var top = GetHostWindow();
         if (top?.Clipboard == null)
         {
             StatusText = "Clipboard unavailable";
@@ -1554,7 +1573,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (tab.IsDirty)
         {
-            var owner = GetMainWindow();
+            var owner = GetHostWindow();
             if (owner == null)
                 return;
 
@@ -1641,7 +1660,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task FindInOpenTabs()
     {
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -1661,7 +1680,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task GoToLine()
     {
         if (SelectedTab == null) return;
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null) return;
 
         var dialog = new GoToLineWindow(SelectedTab.LineNumber);
@@ -1728,7 +1747,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -1800,7 +1819,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -1845,7 +1864,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -2180,7 +2199,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedTab == null)
             return;
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -2309,7 +2328,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (tab.IsDirty)
             {
-                var owner = GetMainWindow();
+                var owner = GetHostWindow();
                 if (owner == null)
                     return;
 
@@ -2449,7 +2468,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenCommandPalette()
     {
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -2465,7 +2484,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenQuickOpen()
     {
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -2527,6 +2546,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var entries = new List<PaletteEntry>
         {
             Entry("File: New Tab", "Ctrl+N", "File", () => { NewTab(); return Task.CompletedTask; }),
+            Entry("File: New Window", "Ctrl+Shift+N", "File", () => { NewWindow(); return Task.CompletedTask; }),
             Entry("File: Open…", "Ctrl+O", "File", () => OpenFile()),
             Entry("File: Open Folder…", "Ctrl+Shift+O", "File", () => OpenFolder()),
             Entry("File: Close Folder", null, "File", () => { CloseFolder(); return Task.CompletedTask; }),
@@ -2652,9 +2672,21 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void NewWindow()
+    {
+        var vm = new MainWindowViewModel(
+            args: [],
+            settings: _settingsService,
+            restoreSession: false);
+        var window = new MainWindow { DataContext = vm };
+        window.Show();
+        StatusText = "New window";
+    }
+
+    [RelayCommand]
     private void Exit()
     {
-        GetMainWindow()?.Close();
+        GetHostWindow()?.Close();
     }
 
     [RelayCommand]
@@ -2669,7 +2701,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 
@@ -2711,7 +2743,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenPreferences()
     {
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null) return;
 
         var current = _settingsService.Current;
@@ -2746,7 +2778,7 @@ public partial class MainWindowViewModel : ViewModelBase
             s.KeyBindings = dialog.Result.KeyBindings;
         });
 
-        GetMainWindow()?.ApplyKeyBindings();
+        GetHostWindow()?.ApplyKeyBindings();
 
         _suppressViewStatus = true;
         // WordWrap preference is the default for new tabs; leave open tabs alone.
@@ -2818,7 +2850,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
         {
             StatusText = $"Update available: v{result.LatestVersion}";
@@ -3045,7 +3077,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (current <= tab.LastWriteTimeUtc.Value.AddMilliseconds(50))
                 return;
 
-            var owner = GetMainWindow();
+            var owner = GetHostWindow();
             if (owner == null) return;
 
             var messageWindow = new Window
@@ -3115,13 +3147,25 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private DocumentEditor? GetSelectedEditor()
     {
-        return GetMainWindow()?.FindSelectedDocumentEditor();
+        return GetHostWindow()?.FindSelectedDocumentEditor();
     }
 
-    private static MainWindow? GetMainWindow()
+    private MainWindow? GetHostWindow()
     {
-        return (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)
-            ?.MainWindow as MainWindow;
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+            return null;
+
+        return desktop.Windows.OfType<MainWindow>()
+                   .FirstOrDefault(w => ReferenceEquals(w.DataContext, this))
+               ?? desktop.MainWindow as MainWindow;
+    }
+
+    private static bool IsLastMainWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+            return true;
+
+        return desktop.Windows.OfType<MainWindow>().Count() <= 1;
     }
 
     private void SaveSession()
@@ -3348,7 +3392,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (entries.Count == 0)
             return;
 
-        var owner = GetMainWindow();
+        var owner = GetHostWindow();
         if (owner == null)
             return;
 

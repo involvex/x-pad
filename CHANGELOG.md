@@ -6,6 +6,8 @@
 - feat(ui): fix favorites, explorer home, menus, and unsaved session restore
 ## Unreleased
 
+- docs: add Microsoft Store listing URL
+- feat(ui): File → New Window (`Ctrl+Shift+N`) with independent tabs
 - fix(ui): Favorites menu Add/Open, tab context actions, Explorer home/last folder
 - feat(ui): split Edit into Edit / Selection / Find; double-click tab strip for new tab
 - feat(session): restore unsaved buffers on the next launch

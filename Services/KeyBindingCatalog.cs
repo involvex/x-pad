@@ -25,6 +25,7 @@ public static class KeyBindingCatalog
         new("MoveTabLeft", "Move tab left", "Ctrl+Shift+PageUp", "MoveTabLeftCommand"),
         new("MoveTabRight", "Move tab right", "Ctrl+Shift+PageDown", "MoveTabRightCommand"),
         new("NewTab", "New tab", "Ctrl+N", "NewTabCommand"),
+        new("NewWindow", "New window", "Ctrl+Shift+N", "NewWindowCommand"),
         new("OpenFile", "Open file", "Ctrl+O", "OpenFileCommand"),
         new("OpenFolder", "Open folder", "Ctrl+Shift+O", "OpenFolderCommand"),
         new("SaveFile", "Save", "Ctrl+S", "SaveFileCommand"),

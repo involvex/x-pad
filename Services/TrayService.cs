@@ -6,6 +6,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using x_pad.ViewModels;
+using x_pad.Views;
 
 namespace x_pad.Services;
 
@@ -94,7 +95,11 @@ public sealed class TrayService : IDisposable
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
             return;
-        if (desktop.MainWindow is not Window window)
+
+        var window = desktop.Windows.OfType<MainWindow>().FirstOrDefault(w => w.IsActive)
+                     ?? desktop.Windows.OfType<MainWindow>().FirstOrDefault()
+                     ?? desktop.MainWindow as Window;
+        if (window == null)
             return;
 
         window.ShowInTaskbar = true;
@@ -106,8 +111,11 @@ public sealed class TrayService : IDisposable
 
     private static void ExitApp()
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow?.Close();
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+            return;
+
+        foreach (var window in desktop.Windows.OfType<MainWindow>().ToList())
+            window.Close();
     }
 
     public void Dispose()
