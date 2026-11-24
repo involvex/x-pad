@@ -100,6 +100,11 @@ pwsh scripts/install-open-with.ps1 -ExePath .\publish\win-x64\xpad.exe</code></p
           </p>
 
           <h3>Microsoft Store (MSIX)</h3>
+          <p>
+            Listing:
+            <a href="https://apps.microsoft.com/detail/9p88nmm8f1wl?cid=DevShareMCLPCS&amp;hl=de-DE&amp;gl=US">apps.microsoft.com/detail/9p88nmm8f1wl</a>
+            (product <code class="inline">9P88NMM8F1WL</code>).
+          </p>
           <pre class="pre"><code># Local sideload (default XPad.Dev identity)
 pwsh scripts/publish-msix.ps1 -Install
 
@@ -112,6 +117,7 @@ pwsh scripts/publish-msix.ps1 `
             Needs the Windows SDK (<code class="inline">makeappx</code>). Store/MSIX installs skip the GitHub updater.
             Listing needs screenshots, box art, a
             <a href="./privacy.html">privacy policy URL</a>, and an IARC age rating.
+            A Partner Center UI draft submission blocks CI <code class="inline">msstore publish</code> until that draft is gone.
           </p>
         </section>
 

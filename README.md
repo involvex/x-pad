@@ -81,6 +81,8 @@ pwsh scripts/publish-msix.ps1 `
 
 Requires the Windows 10/11 SDK (`makeappx` / `signtool`). Output: `publish/xpad-<version>-win-x64.msix`. The Store re-signs the package; do not attach the MSIX to GitHub Releases (zip releases stay unchanged). A Store/MSIX install skips the GitHub updater and is updated by the Store. Listing still needs screenshots, 1:1 box art, a privacy-policy URL ([site/privacy.html](https://involvex.github.io/x-pad/privacy.html)), and the IARC age rating.
 
+Public listing: [apps.microsoft.com/detail/9p88nmm8f1wl](https://apps.microsoft.com/detail/9p88nmm8f1wl?cid=DevShareMCLPCS&hl=de-DE&gl=US) (product **9P88NMM8F1WL**).
+
 A `v*` tag (or a manual run of the [release workflow](.github/workflows/release.yml)) also packs that MSIX and submits product **9P88NMM8F1WL** via the Microsoft Store Developer CLI when these repository secrets are set: `PARTNER_CENTER_TENANT_ID`, `PARTNER_CENTER_SELLER_ID`, `PARTNER_CENTER_CLIENT_ID`, `PARTNER_CENTER_CLIENT_SECRET`. If any secret is missing, Store submit steps are skipped; zip GitHub Releases are unchanged. An in-progress submission started in the Partner Center UI blocks the release Store job until that draft is deleted in the dashboard (the submission API cannot remove portal-created drafts).
 
 ## Cut a release
