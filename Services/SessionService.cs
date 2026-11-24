@@ -9,6 +9,15 @@ namespace x_pad.Services;
 public sealed class SessionTabState
 {
     public string Path { get; set; } = "";
+    public string? Title { get; set; }
+    /// <summary>When set, restore from this text instead of reading the path from disk.</summary>
+    public string? Text { get; set; }
+    public bool IsDirty { get; set; }
+    public string EncodingName { get; set; } = "UTF-8";
+    public bool HasBom { get; set; }
+    public string LineEnding { get; set; } = "LF";
+    public bool InsertSpaces { get; set; } = true;
+    public string? LanguageOverrideExtension { get; set; }
     public int Line { get; set; } = 1;
     public int Column { get; set; } = 1;
 }
@@ -17,6 +26,7 @@ public sealed class SessionState
 {
     public List<SessionTabState> Tabs { get; set; } = [];
     public string? SelectedPath { get; set; }
+    public int SelectedIndex { get; set; } = -1;
 
     /// <summary>Legacy flat path list from older builds.</summary>
     public List<string> Files { get; set; } = [];
@@ -53,7 +63,10 @@ public class SessionService
         try
         {
             // Keep Files in sync for older readers / quick inspection.
-            state.Files = state.Tabs.Select(t => t.Path).ToList();
+            state.Files = state.Tabs
+                .Select(t => t.Path)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .ToList();
             var json = JsonSerializer.Serialize(state, JsonOptions);
             File.WriteAllText(_sessionPath, json);
         }

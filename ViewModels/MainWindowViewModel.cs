@@ -110,7 +110,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private PropertyChangedEventHandler? _splitHookHandler;
 
     public ObservableCollection<string> RecentFiles { get; } = new();
-    public ObservableCollection<string> FavoriteFiles { get; } = new();
+    public ObservableCollection<FavoriteMenuItem> FavoriteMenuItems { get; } = new();
 
     public event EventHandler? RecentFilesChanged;
 
@@ -200,7 +200,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         if (!openedFromArgs)
+        {
+            TryRestoreLastWorkspace();
             RestoreSession();
+        }
 
         if (Tabs.Count == 0)
             NewTab();
@@ -569,11 +572,52 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (_workspace.Root == null)
         {
-            StatusText = "Open a folder first";
+            if (!TryOpenExplorerFolder())
+                return;
+
+            IsExplorerVisible = true;
             return;
         }
 
         IsExplorerVisible = !IsExplorerVisible;
+    }
+
+    private void TryRestoreLastWorkspace()
+    {
+        var last = _settingsService.Current.LastWorkspacePath;
+        if (string.IsNullOrWhiteSpace(last) || !Directory.Exists(last))
+            return;
+
+        OpenWorkspace(last);
+    }
+
+    private bool TryOpenExplorerFolder()
+    {
+        var last = _settingsService.Current.LastWorkspacePath;
+        if (!string.IsNullOrWhiteSpace(last) && Directory.Exists(last))
+        {
+            if (OpenWorkspace(last))
+            {
+                StatusText = $"Folder: {Path.GetFileName(last.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
+                return true;
+            }
+        }
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrWhiteSpace(home) || !Directory.Exists(home))
+        {
+            StatusText = "Could not open home folder";
+            return false;
+        }
+
+        if (!OpenWorkspace(home))
+        {
+            StatusText = "Open folder failed";
+            return false;
+        }
+
+        StatusText = $"Folder: {Path.GetFileName(home.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
+        return true;
     }
 
     [RelayCommand]
@@ -1105,6 +1149,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 return false;
         }
 
+        // Persist open tabs (including discarded unsaved buffers) before clearing crash recovery.
+        SaveSession();
         _recoveryService.MarkCleanExit();
         _fileWatcher.Dispose();
         return true;
@@ -1383,9 +1429,9 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task CopyFullPath()
+    private async Task CopyFullPath(object? parameter)
     {
-        var path = SelectedTab?.FilePath;
+        var path = ResolveTabPath(parameter);
         if (string.IsNullOrWhiteSpace(path))
         {
             StatusText = "No file path";
@@ -1399,14 +1445,14 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await top.Clipboard.SetTextAsync(path!);
+        await top.Clipboard.SetTextAsync(path);
         StatusText = "Path copied";
     }
 
     [RelayCommand]
-    private void RevealInExplorer()
+    private void RevealInExplorer(object? parameter)
     {
-        var path = SelectedTab?.FilePath;
+        var path = ResolveTabPath(parameter);
         if (string.IsNullOrWhiteSpace(path))
         {
             StatusText = "No file path";
@@ -2036,9 +2082,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void RefreshFavoriteFiles()
     {
-        FavoriteFiles.Clear();
+        FavoriteMenuItems.Clear();
         foreach (var path in _settingsService.Current.FavoriteFiles)
-            FavoriteFiles.Add(path);
+        {
+            FavoriteMenuItems.Add(new FavoriteMenuItem
+            {
+                Name = Path.GetFileName(path),
+                Path = path
+            });
+        }
     }
 
     [RelayCommand]
@@ -2488,8 +2540,8 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("File: Close All", null, "File", () => CloseAll()),
             Entry("File: Print…", "Ctrl+P", "File", () => Print()),
             Entry("File: Export as PDF…", null, "File", () => ExportPdf()),
-            Entry("File: Copy Full Path", null, "File", () => CopyFullPath()),
-            Entry("File: Reveal in Explorer", null, "File", () => { RevealInExplorer(); return Task.CompletedTask; }),
+            Entry("File: Copy Full Path", null, "File", () => CopyFullPath(SelectedTab)),
+            Entry("File: Reveal in Explorer", null, "File", () => { RevealInExplorer(SelectedTab); return Task.CompletedTask; }),
             Entry("File: Reload from Disk", null, "File", () => ReloadFromDisk()),
             Entry("File: Exit", "Alt+F4", "File", () => { Exit(); return Task.CompletedTask; }),
 
@@ -2577,11 +2629,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 () => OpenFileFromPath(capture)));
         }
 
-        foreach (var path in FavoriteFiles)
+        foreach (var item in FavoriteMenuItems)
         {
-            var capture = path;
+            var capture = item.Path;
             entries.Add(Entry(
-                $"Favorite: {Path.GetFileName(capture)}",
+                $"Favorite: {item.Name}",
                 null,
                 "Favorites",
                 () => OpenFileFromPath(capture)));
@@ -3077,56 +3129,150 @@ public partial class MainWindowViewModel : ViewModelBase
         var state = new SessionState
         {
             SelectedPath = SelectedTab?.FilePath,
-            Tabs = Tabs
-                .Where(t => !string.IsNullOrWhiteSpace(t.FilePath))
-                .Select(t => new SessionTabState
-                {
-                    Path = t.FilePath!,
-                    Line = Math.Max(1, t.LineNumber),
-                    Column = Math.Max(1, t.ColumnNumber)
-                })
-                .ToList()
+            SelectedIndex = SelectedTab == null ? -1 : Tabs.IndexOf(SelectedTab),
+            Tabs = Tabs.Select(CaptureSessionTab).ToList()
         };
         _sessionService.SaveSession(state);
         SyncFileWatchers();
+    }
+
+    private static SessionTabState CaptureSessionTab(DocumentViewModel tab)
+    {
+        var untitled = string.IsNullOrWhiteSpace(tab.FilePath);
+        var needsText = untitled || tab.IsDirty;
+        return new SessionTabState
+        {
+            Path = tab.FilePath ?? "",
+            Title = tab.Title.TrimEnd('*'),
+            Text = needsText ? tab.Text : null,
+            IsDirty = tab.IsDirty || untitled,
+            EncodingName = tab.Encoding,
+            HasBom = tab.HasBom,
+            LineEnding = tab.LineEnding,
+            InsertSpaces = tab.InsertSpaces,
+            LanguageOverrideExtension = tab.LanguageOverrideExtension,
+            Line = Math.Max(1, tab.LineNumber),
+            Column = Math.Max(1, tab.ColumnNumber)
+        };
     }
 
     private void RestoreSession()
     {
         var state = _sessionService.LoadSession();
         DocumentViewModel? selected = null;
+        var index = 0;
 
         foreach (var entry in state.Tabs)
         {
-            if (string.IsNullOrWhiteSpace(entry.Path) || !File.Exists(entry.Path))
-                continue;
-
             try
             {
-                var snapshot = _fileService.ReadFile(entry.Path);
-                var tab = new DocumentViewModel
-                {
-                    WordWrap = WordWrap,
-                    FontSize = _settingsService.Current.FontSize,
-                    FontFamily = _settingsService.Current.FontFamily,
-                    PendingRestoreLine = Math.Max(1, entry.Line),
-                    PendingRestoreColumn = Math.Max(1, entry.Column)
-                };
-                tab.ApplySnapshot(snapshot, entry.Path, _settingsService.Current.InsertSpaces);
+                var tab = RestoreSessionTab(entry);
+                if (tab == null)
+                    continue;
+
                 Tabs.Add(tab);
 
-                if (state.SelectedPath != null &&
-                    string.Equals(state.SelectedPath, entry.Path, StringComparison.OrdinalIgnoreCase))
+                if (state.SelectedIndex >= 0 && state.SelectedIndex == index)
                     selected = tab;
+                else if (state.SelectedIndex < 0 &&
+                         state.SelectedPath != null &&
+                         !string.IsNullOrWhiteSpace(entry.Path) &&
+                         string.Equals(state.SelectedPath, entry.Path, StringComparison.OrdinalIgnoreCase))
+                    selected = tab;
+
+                index++;
             }
             catch
             {
-                // Skip unreadable session files
+                // Skip unreadable session entries
             }
         }
 
         if (Tabs.Count > 0)
             SelectedTab = selected ?? Tabs[0];
+    }
+
+    private DocumentViewModel? RestoreSessionTab(SessionTabState entry)
+    {
+        var hasPath = !string.IsNullOrWhiteSpace(entry.Path);
+        var restoreFromText = entry.Text != null || !hasPath;
+
+        if (hasPath && entry.Text == null)
+        {
+            if (!File.Exists(entry.Path))
+                return null;
+
+            var snapshot = _fileService.ReadFile(entry.Path);
+            var diskTab = new DocumentViewModel
+            {
+                WordWrap = WordWrap,
+                FontSize = _settingsService.Current.FontSize,
+                FontFamily = _settingsService.Current.FontFamily,
+                LanguageOverrideExtension = entry.LanguageOverrideExtension,
+                PendingRestoreLine = Math.Max(1, entry.Line),
+                PendingRestoreColumn = Math.Max(1, entry.Column)
+            };
+            diskTab.ApplySnapshot(snapshot, entry.Path, _settingsService.Current.InsertSpaces);
+            return diskTab;
+        }
+
+        if (!restoreFromText)
+            return null;
+
+        var lineEnding = (entry.LineEnding ?? "LF").ToUpperInvariant() switch
+        {
+            "CRLF" => LineEndingKind.Crlf,
+            "CR" => LineEndingKind.Cr,
+            _ => LineEndingKind.Lf
+        };
+
+        Encoding encoding = FileService.CreateUtf8(false);
+        var encodingName = string.IsNullOrWhiteSpace(entry.EncodingName) ? "UTF-8" : entry.EncodingName;
+        if (encodingName.Contains("UTF-16 BE", StringComparison.OrdinalIgnoreCase))
+            encoding = new UnicodeEncoding(true, true);
+        else if (encodingName.Contains("UTF-16", StringComparison.OrdinalIgnoreCase))
+            encoding = new UnicodeEncoding(false, true);
+        else if (encodingName.Contains("LATIN", StringComparison.OrdinalIgnoreCase) ||
+                 encodingName.Contains("ISO-8859", StringComparison.OrdinalIgnoreCase))
+            encoding = Encoding.Latin1;
+
+        var title = entry.Title;
+        if (!hasPath)
+        {
+            if (string.IsNullOrWhiteSpace(title) ||
+                title.StartsWith("Untitled", StringComparison.Ordinal))
+            {
+                _untitledCount++;
+                title = $"Untitled {_untitledCount}";
+            }
+        }
+        else
+        {
+            title = string.IsNullOrWhiteSpace(title) ? Path.GetFileName(entry.Path) : title;
+        }
+
+        var tab = new DocumentViewModel
+        {
+            WordWrap = WordWrap,
+            FontSize = _settingsService.Current.FontSize,
+            FontFamily = _settingsService.Current.FontFamily,
+            LanguageOverrideExtension = entry.LanguageOverrideExtension,
+            PendingRestoreLine = Math.Max(1, entry.Line),
+            PendingRestoreColumn = Math.Max(1, entry.Column)
+        };
+
+        tab.RestoreClosedBuffer(
+            hasPath ? entry.Path : null,
+            title ?? "Untitled",
+            entry.Text ?? "",
+            entry.IsDirty || !hasPath,
+            lineEnding,
+            encoding,
+            entry.HasBom,
+            encodingName,
+            entry.InsertSpaces);
+
+        return tab;
     }
 
     private void SyncFileWatchers() =>
@@ -3324,6 +3470,22 @@ public partial class MainWindowViewModel : ViewModelBase
         BindDocumentDockItemsSource();
         ApplyPanelVisibilityFromState();
         EnsureDocumentsBound();
+        WireDocumentDockCreate();
+    }
+
+    private void WireDocumentDockCreate()
+    {
+        if (_dockControl?.Layout is not IDockable root)
+            return;
+
+        foreach (var docDock in EnumerateDockables(root).OfType<DocumentDock>())
+        {
+            if (docDock.Id != "Documents")
+                continue;
+
+            docDock.CanCreateDocument = true;
+            docDock.CreateDocument = NewTabCommand;
+        }
     }
 
     public void SaveDockLayout()

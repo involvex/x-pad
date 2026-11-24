@@ -1,9 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- fix(ui): Favorites menu Add/Open, tab context actions, Explorer home/last folder
+- feat(ui): split Edit into Edit / Selection / Find; double-click tab strip for new tab
+- feat(session): restore unsaved buffers on the next launch
 
 ## 0.5.5 - 2026-11-24
 
 - feat(ui): add Hacker/AMOLED/GitHub themes and VS Code shortcuts
+
 ## 0.5.4 - 2026-11-23
 
 - fix(ui): restore dock explorer, terminal, and document tabs

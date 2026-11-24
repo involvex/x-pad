@@ -98,12 +98,12 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Bookmarks (`Ctrl+F2` / `F2` / `Shift+F2`), rectangular selection (Alt+drag)
 - Command palette (`Ctrl+Shift+P`) for actions + recent files
 - Quick Open (`Ctrl+P`) for open tabs + recent files; Preferences Shortcuts include a VS Code preset
-- Session restore with selected tab + caret line/column
-- Crash recovery for dirty/untitled buffers (`%APPDATA%/XPad/recovery/`); clean exit clears snapshots
+- Session restore with selected tab + caret; dirty/untitled buffers round-trip via `session.json` on clean exit
+- Crash recovery for dirty/untitled buffers (`%APPDATA%/XPad/recovery/`); clean exit clears crash snapshots after session save
 - Case/sort/join/trim + remove empty/duplicate lines; insert spaces vs tabs pref; trim + final newline on save; optional `.bak` backup on save
 - External formatter (`FormatCommand` with `$FILE`, format on save / `Shift+Alt+F` Format Document, optional extension filter)
 - Find / replace in open tabs (`Ctrl+Shift+F`): match case, whole word, regex, replace / replace all (500-hit cap)
-- Open Folder (`Ctrl+Shift+O`) + explorer sidebar; find/replace in folder (`Ctrl+Shift+H`); excludes `.git` / `node_modules` / `bin` / `obj` / `.vs`; LSP `rootUri` follows the workspace folder
+- Open Folder (`Ctrl+Shift+O`) + explorer sidebar; View → Explorer opens last workspace or home when none is open; find/replace in folder (`Ctrl+Shift+H`); excludes `.git` / `node_modules` / `bin` / `obj` / `.vs`; LSP `rootUri` follows the workspace folder
 - Optional autosave (prefs: interval seconds; 0 = off)
 - Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles; F12 definition; Shift+F12 references; Ctrl+Shift+. outline; Ctrl+. code actions with WorkspaceEdit text edits)
 - Encoding + BOM + CRLF/LF/CR preserved on save; re-decode from kept source bytes (UTF-8 / BOM / UTF-16 LE+BE / Latin-1)
@@ -122,7 +122,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Reload from disk (prompts when dirty)
 - Themes: Dark / Light / System / Monokai / Hacker / AMOLED / GitHub (TextMate + editor surface)
 - Minimize to tray (pref) with Recent submenu; editor context menu (invert select, Search Web)
-- Tab Open With (VS Code / Cursor / Windows Terminal); Favorites (File menu + tab context); Export as PDF; embedded ConPTY terminal (Ctrl+`)
+- Tab Open With (VS Code / Cursor / Windows Terminal); Favorites (File → Add/Open + tab context); double-click empty tab strip for a new blank tab; Export as PDF; embedded ConPTY terminal (Ctrl+`)
 
 ## Daily-driver smoke checklist
 

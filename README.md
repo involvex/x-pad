@@ -8,7 +8,7 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 
 ## Highlights
 
-- Tabs, dirty close prompts, session restore (files + caret)
+- Tabs, dirty close prompts, session restore (files + caret, including unsaved buffers)
 - MIT-friendly TextMate syntax highlighting + Dark / Light / System / Monokai / Hacker / AMOLED / GitHub themes
 - VS Code-style shortcuts by default (`Ctrl+P` Quick Open, `Ctrl+D` multi-cursor, `Ctrl+B` Explorer; Preferences → Shortcuts → VS Code)
 - Find / replace, find/replace in open tabs (regex, whole word), bookmarks, bracket match, multi-occurrence edit
@@ -17,7 +17,8 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 - Read-only buffers, crash recovery for dirty/untitled tabs, live external-change watching
 - Large-file guard (8 MB+): open as plain text without folding / word completion / LSP
 - Per-tab word wrap; per-buffer Tabs / Spaces (detected from the file; status-bar toggle)
-- Open Folder / file tree explorer; find/replace in folder (`Ctrl+Shift+H`)
+- Open Folder / file tree explorer (Explorer falls back to last folder or home); find/replace in folder (`Ctrl+Shift+H`)
+- Favorites (File menu + tab context), Selection / Find menus, double-click empty tab strip for a new tab
 - CLI open-or-create (files) or open folder; single-instance file handoff, Send To / Open With helpers
 - Backup on save (`.bak`), optional autosave
 - Optional external formatter (`$FILE` command, format on save)
@@ -98,7 +99,7 @@ Updates `<Version>` in `x-pad.csproj` (About panel), `package.json`, and `CHANGE
 Stored under `%APPDATA%\XPad\`:
 
 - `settings.json` — editor prefs, LSP commands, recent files, update prefs
-- `session.json` — last open files + caret positions
+- `session.json` — last open files + caret positions (and unsaved buffer text)
 - `layout.json` — dock splitter positions and tool panel state (not open file tabs)
 - `recovery/` — dirty/untitled buffer snapshots (cleared on clean exit)
 

@@ -19,6 +19,7 @@ public class SessionServiceTests
             var state = new SessionState
             {
                 SelectedPath = marker,
+                SelectedIndex = 0,
                 Tabs =
                 [
                     new SessionTabState { Path = marker, Line = 1, Column = 3 }
@@ -32,6 +33,52 @@ public class SessionServiceTests
                 t.Line == 1 &&
                 t.Column == 3);
             Assert.Equal(marker, loaded.SelectedPath, ignoreCase: OperatingSystem.IsWindows());
+            Assert.Equal(0, loaded.SelectedIndex);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void Round_trips_untitled_dirty_buffer()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "xpad-session-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var sessionPath = Path.Combine(dir, "session.json");
+        try
+        {
+            var service = new SessionService(sessionPath);
+            var state = new SessionState
+            {
+                SelectedIndex = 0,
+                Tabs =
+                [
+                    new SessionTabState
+                    {
+                        Path = "",
+                        Title = "Untitled 1",
+                        Text = "unsaved draft",
+                        IsDirty = true,
+                        EncodingName = "UTF-8",
+                        LineEnding = "LF",
+                        InsertSpaces = true,
+                        Line = 1,
+                        Column = 8
+                    }
+                ]
+            };
+            service.SaveSession(state);
+
+            var loaded = service.LoadSession();
+            Assert.Single(loaded.Tabs);
+            var tab = loaded.Tabs[0];
+            Assert.True(string.IsNullOrEmpty(tab.Path));
+            Assert.Equal("Untitled 1", tab.Title);
+            Assert.Equal("unsaved draft", tab.Text);
+            Assert.True(tab.IsDirty);
+            Assert.Equal(8, tab.Column);
         }
         finally
         {
