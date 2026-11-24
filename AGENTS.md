@@ -91,7 +91,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 
 ## Features
 
-- Tabbed editing with dirty close prompts, tab × / middle-click / Ctrl+Tab / move tab / reopen closed (`Ctrl+Shift+T`)
+- Tabbed editing with dirty close prompts, tab × / middle-click / Ctrl+Tab / move tab / reopen closed (`Ctrl+Shift+T`); File → New Window (`Ctrl+Shift+N`) for a second window with its own tabs
 - AvaloniaEdit: line numbers, TextMate highlighting, SearchPanel, folding (fold/unfold all), zoom, indent guides, font family prefs
 - Status-bar language override (TextMate) + encoding / EOL / Tabs↔Spaces cycle; external-change prompt on focus, tab switch, and file watcher
 - Per-buffer indent: detect tabs vs spaces from leading whitespace; Tab + auto-indent follow the buffer (prefs default for new/empty)

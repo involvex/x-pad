@@ -59,6 +59,7 @@
         <Menu Background="{DynamicResource XPadChromeAltBrush}">
             <MenuItem Header="_File">
                 <MenuItem Header="_New" Command="{Binding NewTabCommand}" InputGesture="Ctrl+N" />
+                <MenuItem Header="New _Window" Command="{Binding NewWindowCommand}" InputGesture="Ctrl+Shift+N" />
                 <MenuItem Header="_Open..." Command="{Binding OpenFileCommand}" InputGesture="Ctrl+O" />
                 <MenuItem Header="Open Fol_der..." Command="{Binding OpenFolderCommand}" InputGesture="Ctrl+Shift+O" />
                 <MenuItem Header="Close Folde_r" Command="{Binding CloseFolderCommand}" />

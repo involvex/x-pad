@@ -8,7 +8,7 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 
 ## Highlights
 
-- Tabs, dirty close prompts, session restore (files + caret, including unsaved buffers)
+- Tabs, dirty close prompts, session restore (files + caret, including unsaved buffers); File → New Window (`Ctrl+Shift+N`)
 - MIT-friendly TextMate syntax highlighting + Dark / Light / System / Monokai / Hacker / AMOLED / GitHub themes
 - VS Code-style shortcuts by default (`Ctrl+P` Quick Open, `Ctrl+D` multi-cursor, `Ctrl+B` Explorer; Preferences → Shortcuts → VS Code)
 - Find / replace, find/replace in open tabs (regex, whole word), bookmarks, bracket match, multi-occurrence edit
