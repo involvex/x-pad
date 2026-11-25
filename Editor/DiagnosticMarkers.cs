@@ -77,23 +77,31 @@ public sealed class DiagnosticRenderer : IBackgroundRenderer
 
         foreach (var marker in _markers)
         {
-            var brush = new SolidColorBrush(ColorFor(marker.Severity));
+            var pen = PenFor(marker.Severity);
             foreach (var rect in BackgroundGeometryBuilder.GetRectsForSegment(textView, marker))
             {
-                DrawSquiggle(drawingContext, brush, rect.BottomLeft, rect.BottomRight);
+                DrawSquiggle(drawingContext, pen, rect.BottomLeft, rect.BottomRight);
             }
         }
     }
 
-    private static Color ColorFor(int severity) => severity switch
+    private static readonly Pen ErrorPen = CreatePen(Color.FromRgb(244, 71, 71));
+    private static readonly Pen WarningPen = CreatePen(Color.FromRgb(204, 167, 0));
+    private static readonly Pen InfoPen = CreatePen(Color.FromRgb(55, 148, 255));
+    private static readonly Pen HintPen = CreatePen(Color.FromRgb(140, 140, 140));
+
+    private static Pen CreatePen(Color color) =>
+        new(new SolidColorBrush(color), 1.2);
+
+    private static Pen PenFor(int severity) => severity switch
     {
-        1 => Color.FromRgb(244, 71, 71),   // error
-        2 => Color.FromRgb(204, 167, 0),   // warning
-        3 => Color.FromRgb(55, 148, 255),  // info
-        _ => Color.FromRgb(140, 140, 140)
+        1 => ErrorPen,
+        2 => WarningPen,
+        3 => InfoPen,
+        _ => HintPen
     };
 
-    private static void DrawSquiggle(DrawingContext context, IBrush brush, Point start, Point end)
+    private static void DrawSquiggle(DrawingContext context, Pen pen, Point start, Point end)
     {
         const double amplitude = 1.6;
         const double period = 3.0;
@@ -112,6 +120,6 @@ public sealed class DiagnosticRenderer : IBackgroundRenderer
             }
         }
 
-        context.DrawGeometry(null, new Pen(brush, 1.2), geometry);
+        context.DrawGeometry(null, pen, geometry);
     }
 }

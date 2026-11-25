@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -56,6 +57,9 @@ public partial class DocumentEditor : UserControl
     private bool _initialized;
     private int _changeVersion;
     private DispatcherTimer? _wordHighlightTimer;
+    private readonly WordListCache _wordListCache = new();
+    private CancellationTokenSource? _lspCompletionCts;
+    private int _lspCompletionVersion;
 
     public DocumentEditor()
     {
@@ -309,6 +313,9 @@ public partial class DocumentEditor : UserControl
         UninstallWordHighlight();
         UninstallBookmarks();
         _wordHighlightTimer?.Stop();
+        _lspCompletionCts?.Cancel();
+        _lspCompletionCts?.Dispose();
+        _lspCompletionCts = null;
         _ = CloseLspDocumentAsync();
     }
 
@@ -382,8 +389,11 @@ public partial class DocumentEditor : UserControl
         {
             Interval = TimeSpan.FromMilliseconds(800)
         };
-        _foldingTimer.Tick += (_, _) => UpdateFolding();
-        _foldingTimer.Start();
+        _foldingTimer.Tick += (_, _) =>
+        {
+            _foldingTimer.Stop();
+            UpdateFolding();
+        };
 
         _wordHighlightTimer = new DispatcherTimer
         {
@@ -392,6 +402,7 @@ public partial class DocumentEditor : UserControl
         _wordHighlightTimer.Tick += (_, _) =>
         {
             _wordHighlightTimer.Stop();
+            UpdateBracketHighlight();
             UpdateWordHighlight();
         };
 
@@ -448,6 +459,8 @@ public partial class DocumentEditor : UserControl
         if (_editorSecondary != null)
             _editorSecondary.Document = _document.Document;
         ApplyReadOnlyState();
+        _foldingTimer?.Stop();
+        _wordListCache.Invalidate();
         if (_document.IsLargeFile)
         {
             UninstallFolding();
@@ -456,6 +469,7 @@ public partial class DocumentEditor : UserControl
         {
             _foldingManager = FoldingManager.Install(_editor.TextArea);
             _foldingDocument = _editor.Document;
+            ScheduleFoldingUpdate();
         }
 
         InstallDiagnostics();
@@ -586,7 +600,7 @@ public partial class DocumentEditor : UserControl
 
     private void InstallWordHighlight()
     {
-        if (_editor == null)
+        if (_editor == null || _document?.IsLargeFile == true)
             return;
 
         _wordHighlight = new WordHighlightRenderer();
@@ -784,7 +798,17 @@ public partial class DocumentEditor : UserControl
     {
         _changeVersion++;
         var version = _changeVersion;
+        ScheduleFoldingUpdate();
         _ = NotifyLspChangeAsync(version);
+    }
+
+    private void ScheduleFoldingUpdate()
+    {
+        if (_foldingTimer == null || _document?.IsLargeFile == true)
+            return;
+
+        _foldingTimer.Stop();
+        _foldingTimer.Start();
     }
 
     public void RefreshGrammar() => ApplyGrammar();
@@ -1488,9 +1512,8 @@ public partial class DocumentEditor : UserControl
     private void OnCaretPositionChanged(object? sender, EventArgs e)
     {
         UpdateCaretStatus();
-        UpdateBracketHighlight();
         _occurrences?.OnCaretMoved();
-        ScheduleWordHighlight();
+        ScheduleCaretSettledHighlights();
     }
 
     private void UpdateBracketHighlight()
@@ -1502,7 +1525,7 @@ public partial class DocumentEditor : UserControl
         _editor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
     }
 
-    private void ScheduleWordHighlight()
+    private void ScheduleCaretSettledHighlights()
     {
         if (_wordHighlightTimer == null)
             return;
@@ -1574,7 +1597,7 @@ public partial class DocumentEditor : UserControl
         if (_settings?.Current.WordCompletion != false)
             MaybeShowWordCompletion(ch);
 
-        UpdateBracketHighlight();
+        ScheduleCaretSettledHighlights();
         _ = MaybeShowLspCompletionAsync(ch);
     }
 
@@ -1626,7 +1649,7 @@ public partial class DocumentEditor : UserControl
 
     private void ShowWordCompletion(bool force)
     {
-        if (_editor == null || _document?.IsLargeFile == true || _document?.IsReadOnly == true)
+        if (_editor == null || _document == null || _document.IsLargeFile || _document.IsReadOnly)
             return;
 
         var word = GetWordBeforeCaret();
@@ -1634,7 +1657,7 @@ public partial class DocumentEditor : UserControl
             return;
 
         var candidates = WordCompletion.RankCandidates(
-            WordCompletion.CollectWords(_editor.Document.Text),
+            _wordListCache.GetOrCollect(_editor.Document.Text, _document.LspVersion),
             word,
             limit: 40,
             allowEmptyPrefix: force);
@@ -1651,27 +1674,48 @@ public partial class DocumentEditor : UserControl
             return;
         if (!char.IsLetterOrDigit(ch) && ch is not ('.' or '_'))
             return;
-
-        var languageId = LanguageHelper.GetLspLanguageId(_document.FilePath);
-        var client = await _lsp.GetClientAsync(languageId, _document.FilePath);
-        if (client == null)
+        if (_completionWindow != null)
             return;
 
-        var uri = ToUri(_document.FilePath);
-        if (uri == null)
-            return;
+        _lspCompletionCts?.Cancel();
+        _lspCompletionCts?.Dispose();
+        _lspCompletionCts = new CancellationTokenSource();
+        var ct = _lspCompletionCts.Token;
+        var version = ++_lspCompletionVersion;
 
-        var caret = _editor.TextArea.Caret;
-        var items = await client.CompletionAsync(uri, caret.Line - 1, caret.Column - 1);
-        if (items.Count == 0)
-            return;
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        try
         {
-            ShowCompletion(items.Select(i => new WordCompletionData(
-                i.InsertText ?? i.Label,
-                i.Detail ?? i.Label)));
-        });
+            await Task.Delay(200, ct);
+            if (version != _lspCompletionVersion || ct.IsCancellationRequested)
+                return;
+
+            var languageId = LanguageHelper.GetLspLanguageId(_document.FilePath);
+            var client = await _lsp.GetClientAsync(languageId, _document.FilePath);
+            if (client == null || ct.IsCancellationRequested || version != _lspCompletionVersion)
+                return;
+
+            var uri = ToUri(_document.FilePath);
+            if (uri == null)
+                return;
+
+            var caret = _editor.TextArea.Caret;
+            var items = await client.CompletionAsync(uri, caret.Line - 1, caret.Column - 1);
+            if (items.Count == 0 || ct.IsCancellationRequested || version != _lspCompletionVersion)
+                return;
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (version != _lspCompletionVersion)
+                    return;
+                ShowCompletion(items.Select(i => new WordCompletionData(
+                    i.InsertText ?? i.Label,
+                    i.Detail ?? i.Label)));
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Newer keystroke cancelled this request.
+        }
     }
 
     private void ShowCompletion(IEnumerable<WordCompletionData> items)

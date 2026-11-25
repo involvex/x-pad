@@ -91,4 +91,31 @@ public class RecoveryServiceTests
                 File.Delete(marker);
         }
     }
+
+    [Fact]
+    public void HasPendingRecovery_detects_json_without_parsing_bodies()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "xpad-recovery-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var service = new RecoveryService(dir);
+            Assert.False(service.HasPendingRecovery());
+
+            // Intentionally invalid JSON — HasPendingRecovery only checks file presence.
+            File.WriteAllText(Path.Combine(dir, "broken.json"), "{not-json");
+            Assert.True(service.HasPendingRecovery());
+
+            service.DeleteEntry("broken");
+            Assert.False(service.HasPendingRecovery());
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+            var marker = Path.Combine(Path.GetDirectoryName(dir)!, "clean-exit");
+            if (File.Exists(marker))
+                File.Delete(marker);
+        }
+    }
 }

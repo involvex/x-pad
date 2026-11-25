@@ -253,6 +253,9 @@ public partial class DocumentViewModel : ViewModelBase
 
     public void UpdateCaret(int line, int column)
     {
+        if (LineNumber == line && ColumnNumber == column)
+            return;
+
         LineNumber = line;
         ColumnNumber = column;
     }
@@ -262,7 +265,8 @@ public partial class DocumentViewModel : ViewModelBase
         if (_suppressDirty)
             return;
 
-        UpdateLineCount();
+        if (LineCount != Document.LineCount)
+            UpdateLineCount();
         RefreshDirtyState();
         LspVersion++;
     }

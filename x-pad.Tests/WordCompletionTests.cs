@@ -53,4 +53,21 @@ public class WordCompletionTests
         Assert.Contains("Main", words);
         Assert.DoesNotContain("//", words);
     }
+
+    [Fact]
+    public void WordListCache_reuses_list_until_version_changes()
+    {
+        var cache = new WordListCache();
+        var first = cache.GetOrCollect("alpha beta", version: 1);
+        var second = cache.GetOrCollect("alpha beta gamma", version: 1);
+        Assert.Same(first, second);
+        Assert.DoesNotContain("gamma", second);
+
+        var third = cache.GetOrCollect("alpha beta gamma", version: 2);
+        Assert.NotSame(first, third);
+        Assert.Contains("gamma", third);
+        // Empty-prefix rank: shortest first, then ordinal ignore-case.
+        Assert.Equal(new[] { "beta", "alpha", "gamma" },
+            WordCompletion.RankCandidates(third, "", allowEmptyPrefix: true));
+    }
 }

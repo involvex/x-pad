@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -28,6 +30,8 @@ public partial class FindInFolderWindow : Window
     private readonly FileService _fileService = new();
     private List<FolderFindHit> _hits = [];
     private string _lastPattern = "";
+    private CancellationTokenSource? _searchCts;
+    private int _searchVersion;
 
     public FolderFindHit? JumpResult { get; private set; }
     public int ReplaceCount { get; private set; }
@@ -60,7 +64,7 @@ public partial class FindInFolderWindow : Window
         var list = this.FindControl<ListBox>("ResultsList");
 
         if (search != null)
-            search.Click += (_, _) => RunSearch();
+            search.Click += async (_, _) => await RunSearchAsync();
         if (replace != null)
             replace.Click += OnReplaceClick;
         if (replaceAll != null)
@@ -73,6 +77,13 @@ public partial class FindInFolderWindow : Window
 
         if (list != null)
             list.KeyDown += OnListKeyDown;
+
+        Closed += (_, _) =>
+        {
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = null;
+        };
     }
 
     private TabSearchOptions CurrentOptions() =>
@@ -84,11 +95,12 @@ public partial class FindInFolderWindow : Window
             MaxHits = DiskSearch.DefaultMaxHits
         };
 
-    private void RunSearch()
+    private async Task RunSearchAsync()
     {
         var query = this.FindControl<TextBox>("QueryBox");
         var list = this.FindControl<ListBox>("ResultsList");
         var summary = this.FindControl<TextBlock>("SummaryBox");
+        var searchButton = this.FindControl<Button>("SearchButton");
         if (query == null || list == null)
             return;
 
@@ -96,41 +108,74 @@ public partial class FindInFolderWindow : Window
         _lastPattern = needle;
         _hits = [];
 
-        if (needle.Length > 0 && Directory.Exists(_root))
-        {
-            var result = DiskSearch.Search(_root, needle, CurrentOptions(), _excludes);
-            foreach (var hit in result.Hits)
-            {
-                var rel = Path.GetRelativePath(_root, hit.Path);
-                _hits.Add(new FolderFindHit
-                {
-                    Path = hit.Path,
-                    Match = hit.Match,
-                    Location = $"{rel}:{hit.Match.Line}",
-                    Preview = hit.Match.Preview
-                });
-            }
-
-            list.ItemsSource = _hits;
-            if (_hits.Count > 0)
-                list.SelectedIndex = 0;
-
-            if (summary != null)
-            {
-                var suffix = result.Truncated ? " (truncated)" : "";
-                summary.Text =
-                    $"{_hits.Count} hit(s) in {result.FilesScanned} file(s){suffix}; skipped {result.FilesSkipped}";
-            }
-        }
-        else
+        if (needle.Length == 0 || !Directory.Exists(_root))
         {
             list.ItemsSource = _hits;
             if (summary != null)
                 summary.Text = "Type a pattern and Search";
+            return;
+        }
+
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+        var version = ++_searchVersion;
+
+        if (searchButton != null)
+            searchButton.IsEnabled = false;
+        if (summary != null)
+            summary.Text = "Searching…";
+
+        DiskSearchResult result;
+        try
+        {
+            result = await DiskSearch.SearchAsync(
+                _root,
+                needle,
+                CurrentOptions(),
+                _excludes,
+                DiskSearch.DefaultMaxHits,
+                ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        finally
+        {
+            if (searchButton != null)
+                searchButton.IsEnabled = true;
+        }
+
+        if (version != _searchVersion || ct.IsCancellationRequested)
+            return;
+
+        foreach (var hit in result.Hits)
+        {
+            var rel = Path.GetRelativePath(_root, hit.Path);
+            _hits.Add(new FolderFindHit
+            {
+                Path = hit.Path,
+                Match = hit.Match,
+                Location = $"{rel}:{hit.Match.Line}",
+                Preview = hit.Match.Preview
+            });
+        }
+
+        list.ItemsSource = _hits;
+        if (_hits.Count > 0)
+            list.SelectedIndex = 0;
+
+        if (summary != null)
+        {
+            var suffix = result.Truncated ? " (truncated)" : "";
+            summary.Text =
+                $"{_hits.Count} hit(s) in {result.FilesScanned} file(s){suffix}; skipped {result.FilesSkipped}";
         }
     }
 
-    private void OnReplaceClick(object? sender, RoutedEventArgs e)
+    private async void OnReplaceClick(object? sender, RoutedEventArgs e)
     {
         var list = this.FindControl<ListBox>("ResultsList");
         var replaceBox = this.FindControl<TextBox>("ReplaceBox");
@@ -139,10 +184,10 @@ public partial class FindInFolderWindow : Window
 
         var count = ApplyReplace([hit], replaceBox.Text ?? "");
         ReplaceCount += count;
-        RunSearch();
+        await RunSearchAsync();
     }
 
-    private void OnReplaceAllClick(object? sender, RoutedEventArgs e)
+    private async void OnReplaceAllClick(object? sender, RoutedEventArgs e)
     {
         var replaceBox = this.FindControl<TextBox>("ReplaceBox");
         if (replaceBox == null || _hits.Count == 0)
@@ -150,7 +195,7 @@ public partial class FindInFolderWindow : Window
 
         var count = ApplyReplace(_hits, replaceBox.Text ?? "");
         ReplaceCount += count;
-        RunSearch();
+        await RunSearchAsync();
         var summary = this.FindControl<TextBlock>("SummaryBox");
         if (summary != null && count > 0)
             summary.Text = $"Replaced {count} occurrence(s). {_hits.Count} hit(s) remaining.";
@@ -181,15 +226,9 @@ public partial class FindInFolderWindow : Window
                 continue;
             else
             {
-                try
-                {
-                    var diskText = File.ReadAllText(path);
-                    matches = TabSearch.Search(diskText, _lastPattern, options).Matches.ToList();
-                }
-                catch
-                {
+                if (!DiskSearch.TryReadTextFile(path, out var diskText))
                     continue;
-                }
+                matches = TabSearch.Search(diskText, _lastPattern, options).Matches.ToList();
             }
 
             var result = DiskReplace.Apply(
@@ -210,11 +249,11 @@ public partial class FindInFolderWindow : Window
         return total;
     }
 
-    private void OnQueryKeyDown(object? sender, KeyEventArgs e)
+    private async void OnQueryKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
         {
-            RunSearch();
+            await RunSearchAsync();
             e.Handled = true;
         }
         else if (e.Key == Key.Escape)

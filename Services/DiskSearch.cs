@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace x_pad.Services;
 
@@ -29,7 +31,25 @@ public static class DiskSearch
         string pattern,
         TabSearchOptions options,
         IEnumerable<string>? excludeNames = null,
-        int maxHits = DefaultMaxHits)
+        int maxHits = DefaultMaxHits) =>
+        Search(root, pattern, options, excludeNames, maxHits, CancellationToken.None);
+
+    public static Task<DiskSearchResult> SearchAsync(
+        string root,
+        string pattern,
+        TabSearchOptions options,
+        IEnumerable<string>? excludeNames = null,
+        int maxHits = DefaultMaxHits,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() => Search(root, pattern, options, excludeNames, maxHits, cancellationToken), cancellationToken);
+
+    public static DiskSearchResult Search(
+        string root,
+        string pattern,
+        TabSearchOptions options,
+        IEnumerable<string>? excludeNames,
+        int maxHits,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root) || string.IsNullOrEmpty(pattern))
             return new DiskSearchResult { Hits = [], Truncated = false };
@@ -45,24 +65,15 @@ public static class DiskSearch
 
         foreach (var path in EnumerateFiles(root, excludes))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (hits.Count >= cap)
             {
                 truncated = true;
                 break;
             }
 
-            if (ShouldSkipFile(path))
-            {
-                skipped++;
-                continue;
-            }
-
-            string text;
-            try
-            {
-                text = File.ReadAllText(path);
-            }
-            catch
+            if (!TryReadTextFile(path, out var text))
             {
                 skipped++;
                 continue;
@@ -140,6 +151,31 @@ public static class DiskSearch
         }
     }
 
+    /// <summary>
+    /// One read: skip large/binary files, decode with <see cref="FileService.Decode"/>.
+    /// </summary>
+    public static bool TryReadTextFile(string path, out string text)
+    {
+        text = "";
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || LargeFilePolicy.IsLarge(info.Length))
+                return false;
+
+            var bytes = File.ReadAllBytes(path);
+            if (LooksBinary(bytes))
+                return false;
+
+            text = FileService.Decode(bytes).Text;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static bool ShouldSkipFile(string path)
     {
         try
@@ -165,30 +201,36 @@ public static class DiskSearch
             using var stream = File.OpenRead(path);
             var buffer = new byte[8192];
             var read = stream.Read(buffer, 0, buffer.Length);
-            if (read == 0)
-                return false;
-
-            var utf16Bom = read >= 2 &&
-                           ((buffer[0] == 0xFF && buffer[1] == 0xFE) ||
-                            (buffer[0] == 0xFE && buffer[1] == 0xFF));
-            if (utf16Bom)
-                return false; // UTF-16 text is full of null high bytes
-
-            var start = 0;
-            if (read >= 3 && buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
-                start = 3; // UTF-8 BOM
-
-            for (var i = start; i < read; i++)
-            {
-                if (buffer[i] == 0)
-                    return true;
-            }
-
-            return false;
+            return LooksBinary(buffer.AsSpan(0, read));
         }
         catch
         {
             return true;
         }
+    }
+
+    public static bool LooksBinary(ReadOnlySpan<byte> buffer)
+    {
+        if (buffer.Length == 0)
+            return false;
+
+        var utf16Bom = buffer.Length >= 2 &&
+                       ((buffer[0] == 0xFF && buffer[1] == 0xFE) ||
+                        (buffer[0] == 0xFE && buffer[1] == 0xFF));
+        if (utf16Bom)
+            return false; // UTF-16 text is full of null high bytes
+
+        var start = 0;
+        if (buffer.Length >= 3 && buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
+            start = 3; // UTF-8 BOM
+
+        var end = Math.Min(buffer.Length, 8192);
+        for (var i = start; i < end; i++)
+        {
+            if (buffer[i] == 0)
+                return true;
+        }
+
+        return false;
     }
 }

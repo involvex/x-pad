@@ -26,10 +26,14 @@ public partial class FileTreeViewModel : ViewModelBase
     [ObservableProperty]
     private string? rootPath;
 
+    public bool HasWorkspace =>
+        !string.IsNullOrWhiteSpace(RootPath) && Directory.Exists(RootPath);
+
     public void Reload()
     {
         Roots.Clear();
         RootPath = _workspace.Root;
+        OnPropertyChanged(nameof(HasWorkspace));
         if (string.IsNullOrWhiteSpace(RootPath) || !Directory.Exists(RootPath))
             return;
 

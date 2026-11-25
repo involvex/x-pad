@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -26,6 +29,9 @@ public partial class FindInOpenTabsWindow : Window
     private readonly IReadOnlyList<DocumentViewModel> _tabs;
     private List<FindHit> _hits = [];
     private string _lastPattern = "";
+    private CancellationTokenSource? _searchCts;
+    private DispatcherTimer? _debounceTimer;
+    private int _searchVersion;
 
     public FindHit? Result { get; private set; }
     public int ReplaceCount { get; private set; }
@@ -44,7 +50,14 @@ public partial class FindInOpenTabsWindow : Window
         if (query == null || list == null)
             return;
 
-        query.TextChanged += (_, _) => Search();
+        _debounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _debounceTimer.Tick += (_, _) =>
+        {
+            _debounceTimer.Stop();
+            _ = SearchAsync();
+        };
+
+        query.TextChanged += (_, _) => ScheduleSearch();
         WireOption(this.FindControl<CheckBox>("MatchCaseBox"));
         WireOption(this.FindControl<CheckBox>("WholeWordBox"));
         WireOption(this.FindControl<CheckBox>("RegexBox"));
@@ -58,13 +71,20 @@ public partial class FindInOpenTabsWindow : Window
 
         query.KeyDown += OnQueryKeyDown;
         list.KeyDown += OnListKeyDown;
+        Closed += (_, _) =>
+        {
+            _debounceTimer?.Stop();
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = null;
+        };
         Opened += (_, _) => Dispatcher.UIThread.Post(() => query.Focus());
     }
 
     private void WireOption(CheckBox? box)
     {
         if (box != null)
-            box.IsCheckedChanged += (_, _) => Search();
+            box.IsCheckedChanged += (_, _) => ScheduleSearch();
     }
 
     private TabSearchOptions CurrentOptions() =>
@@ -76,7 +96,19 @@ public partial class FindInOpenTabsWindow : Window
             MaxHits = 500
         };
 
-    private void Search()
+    private void ScheduleSearch()
+    {
+        if (_debounceTimer == null)
+        {
+            _ = SearchAsync();
+            return;
+        }
+
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
+    private async Task SearchAsync()
     {
         var query = this.FindControl<TextBox>("QueryBox");
         var list = this.FindControl<ListBox>("ResultsList");
@@ -87,61 +119,92 @@ public partial class FindInOpenTabsWindow : Window
         var needle = query.Text ?? "";
         _lastPattern = needle;
         var options = CurrentOptions();
-        _hits = [];
-        var truncated = false;
+        var version = ++_searchVersion;
 
-        if (needle.Length > 0)
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
+        if (needle.Length == 0)
         {
-            foreach (var tab in _tabs)
-            {
-                var remaining = 500 - _hits.Count;
-                if (remaining <= 0)
-                {
-                    truncated = true;
-                    break;
-                }
-
-                var title = tab.Title.TrimEnd('*');
-                var result = TabSearch.Search(tab.Text, needle, new TabSearchOptions
-                {
-                    MatchCase = options.MatchCase,
-                    WholeWord = options.WholeWord,
-                    UseRegex = options.UseRegex,
-                    MaxHits = remaining
-                });
-                truncated |= result.Truncated;
-
-                foreach (var match in result.Matches)
-                {
-                    _hits.Add(new FindHit
-                    {
-                        Tab = tab,
-                        Offset = match.Offset,
-                        Line = match.Line,
-                        Column = match.Column,
-                        MatchLength = match.Length,
-                        Location = $"{title}:{match.Line}",
-                        Preview = match.Preview
-                    });
-                }
-            }
+            _hits = [];
+            list.ItemsSource = _hits;
+            if (summary != null)
+                summary.Text = "Type to search open tabs";
+            return;
         }
 
+        if (summary != null)
+            summary.Text = "Searching…";
+
+        // Snapshot text on UI thread; search off-thread.
+        var snapshots = _tabs
+            .Select(t => (Tab: t, Title: t.Title.TrimEnd('*'), Text: t.Text))
+            .ToList();
+
+        List<FindHit> hits;
+        var truncated = false;
+        try
+        {
+            (hits, truncated) = await Task.Run(() =>
+            {
+                var found = new List<FindHit>();
+                var wasTruncated = false;
+                foreach (var snap in snapshots)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var remaining = 500 - found.Count;
+                    if (remaining <= 0)
+                    {
+                        wasTruncated = true;
+                        break;
+                    }
+
+                    var result = TabSearch.Search(snap.Text, needle, new TabSearchOptions
+                    {
+                        MatchCase = options.MatchCase,
+                        WholeWord = options.WholeWord,
+                        UseRegex = options.UseRegex,
+                        MaxHits = remaining
+                    });
+                    wasTruncated |= result.Truncated;
+
+                    foreach (var match in result.Matches)
+                    {
+                        found.Add(new FindHit
+                        {
+                            Tab = snap.Tab,
+                            Offset = match.Offset,
+                            Line = match.Line,
+                            Column = match.Column,
+                            MatchLength = match.Length,
+                            Location = $"{snap.Title}:{match.Line}",
+                            Preview = match.Preview
+                        });
+                    }
+                }
+
+                return (found, wasTruncated);
+            }, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (version != _searchVersion || ct.IsCancellationRequested)
+            return;
+
+        _hits = hits;
         list.ItemsSource = _hits;
         if (_hits.Count > 0)
             list.SelectedIndex = 0;
 
         if (summary != null)
         {
-            if (needle.Length == 0)
-            {
-                summary.Text = "Type to search open tabs";
-            }
-            else
-            {
-                var suffix = truncated ? " (truncated)" : "";
-                summary.Text = $"{_hits.Count} hit(s){suffix} — Enter jump · Replace / Replace All · Esc close";
-            }
+            var suffix = truncated ? " (truncated)" : "";
+            summary.Text = $"{_hits.Count} hit(s){suffix} — Enter jump · Replace / Replace All · Esc close";
         }
     }
 
@@ -162,7 +225,7 @@ public partial class FindInOpenTabsWindow : Window
 
         hit.Tab.Document.Replace(hit.Offset, hit.MatchLength, replacement);
         ReplaceCount++;
-        Search();
+        _ = SearchAsync();
     }
 
     private void OnReplaceAllClick(object? sender, RoutedEventArgs e)
@@ -194,7 +257,7 @@ public partial class FindInOpenTabsWindow : Window
         }
 
         ReplaceCount += total;
-        Search();
+        _ = SearchAsync();
         var summary = this.FindControl<TextBlock>("SummaryBox");
         if (summary != null && total > 0)
             summary.Text = $"Replaced {total} occurrence(s). {_hits.Count} hit(s) remaining.";

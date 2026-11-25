@@ -42,13 +42,18 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly FileTreeViewModel _fileTree;
     private readonly DispatcherTimer _autosaveTimer;
     private readonly DispatcherTimer _recoveryTimer;
+    private readonly DispatcherTimer _sessionSaveTimer;
+    private readonly DispatcherTimer _statusRestoreTimer;
     private readonly List<ClosedTabSnapshot> _closedTabs = new();
+    private readonly Dictionary<string, int> _recoverySavedVersions = new(StringComparer.Ordinal);
     private const int MaxClosedTabs = 20;
     private int _untitledCount;
     private bool _autosaveRunning;
     private int _externalChangeGate;
     private int _watcherPromptGate;
     private bool _recoveryPromptScheduled;
+    private string _statusBaseline = "Ready";
+    private SessionState? _pendingSession;
     private IReadOnlyList<LspDiagnostic> _selectedTabDiagnostics = [];
     private readonly DockLayoutService _dockLayout = new();
     private DockControl? _dockControl;
@@ -220,6 +225,16 @@ public partial class MainWindowViewModel : ViewModelBase
         ConfigureAutosaveTimer();
         _settingsService.Changed += ConfigureAutosaveTimer;
 
+        _sessionSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        _sessionSaveTimer.Tick += (_, _) => FlushSaveSession(background: true);
+
+        _statusRestoreTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _statusRestoreTimer.Tick += (_, _) =>
+        {
+            _statusRestoreTimer.Stop();
+            StatusText = _statusBaseline;
+        };
+
         _fileWatcher.FileChanged += OnWatchedFileChanged;
         SyncFileWatchers();
 
@@ -241,9 +256,23 @@ public partial class MainWindowViewModel : ViewModelBase
         IsExplorerVisible = _workspace.Root != null;
         OnPropertyChanged(nameof(WorkspaceRoot));
         _ = _lspManager.ResetAsync();
-        StatusText = _workspace.Root == null
-            ? "Folder closed"
-            : $"Folder: {Path.GetFileName(_workspace.Root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
+        SetStatusBaseline(_workspace.Root == null
+            ? "Ready"
+            : $"Folder: {Path.GetFileName(_workspace.Root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}");
+    }
+
+    private void SetStatusBaseline(string text)
+    {
+        _statusBaseline = text;
+        _statusRestoreTimer.Stop();
+        StatusText = text;
+    }
+
+    private void SetTransientStatus(string text)
+    {
+        StatusText = text;
+        _statusRestoreTimer.Stop();
+        _statusRestoreTimer.Start();
     }
 
     public bool OpenWorkspace(string path)
@@ -307,9 +336,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
 
             _selectedTabDiagnostics = diagnostics;
-            StatusText = diagnostics.Count == 0
-                ? "Ready"
-                : $"{diagnostics.Count} diagnostic(s) — {diagnostics[0].Message}";
+            SetStatusBaseline(diagnostics.Count == 0
+                ? (_workspace.Root == null
+                    ? "Ready"
+                    : $"Folder: {Path.GetFileName(_workspace.Root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}")
+                : $"{diagnostics.Count} diagnostic(s) — {diagnostics[0].Message}");
         });
     }
 
@@ -354,20 +385,20 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _settingsService.Update(s => s.WordWrap = value);
         if (!_suppressViewStatus)
-            StatusText = value ? "Word Wrap: On" : "Word Wrap: Off";
+            SetTransientStatus(value ? "Word Wrap: On" : "Word Wrap: Off");
     }
 
     partial void OnShowWhitespaceChanged(bool value)
     {
         _settingsService.Update(s => s.ShowWhitespace = value);
         if (!_suppressViewStatus)
-            StatusText = value ? "Whitespace: On" : "Whitespace: Off";
+            SetTransientStatus(value ? "Whitespace: On" : "Whitespace: Off");
     }
 
     partial void OnAlwaysOnTopChanged(bool value)
     {
         if (!_suppressViewStatus)
-            StatusText = value ? "Always on Top: On" : "Always on Top: Off";
+            SetTransientStatus(value ? "Always on Top: On" : "Always on Top: Off");
     }
 
     partial void OnIsExplorerVisibleChanged(bool value)
@@ -381,7 +412,7 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnIsTerminalVisibleChanged(bool value)
     {
         if (!_suppressViewStatus)
-            StatusText = value ? "Terminal shown" : "Terminal hidden";
+            SetTransientStatus(value ? "Terminal shown" : "Terminal hidden");
 
         if (!_syncingPanelVisibility && _dockFactory != null)
             EnsureTool(TerminalTool, "TerminalToolDock", value);
@@ -465,7 +496,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _settingsService.Update(s => s.Theme = theme);
             EditorThemeService.ApplyAppTheme(theme);
-            StatusText = $"Theme: {theme}";
+            SetTransientStatus($"Theme: {theme}");
             NotifyThemeProperties();
             return;
         }
@@ -473,7 +504,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Theme = theme;
         _settingsService.Update(s => s.Theme = theme);
         EditorThemeService.ApplyAppTheme(theme);
-        StatusText = $"Theme: {theme}";
+        SetTransientStatus($"Theme: {theme}");
     }
 
     private void ScheduleStartupUpdateCheck()
@@ -569,9 +600,9 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
 
         if (OpenWorkspace(folder.Path.LocalPath))
-            StatusText = $"Opened folder: {_workspace.Root}";
+            SetStatusBaseline($"Folder: {Path.GetFileName(_workspace.Root!.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}");
         else
-            StatusText = "Open folder failed";
+            SetTransientStatus("Open folder failed");
     }
 
     [RelayCommand]
@@ -612,7 +643,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             if (OpenWorkspace(last))
             {
-                StatusText = $"Folder: {Path.GetFileName(last.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
+                SetStatusBaseline($"Folder: {Path.GetFileName(last.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}");
                 return true;
             }
         }
@@ -620,17 +651,17 @@ public partial class MainWindowViewModel : ViewModelBase
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrWhiteSpace(home) || !Directory.Exists(home))
         {
-            StatusText = "Could not open home folder";
+            SetTransientStatus("Could not open home folder");
             return false;
         }
 
         if (!OpenWorkspace(home))
         {
-            StatusText = "Open folder failed";
+            SetTransientStatus("Open folder failed");
             return false;
         }
 
-        StatusText = $"Folder: {Path.GetFileName(home.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
+        SetStatusBaseline($"Folder: {Path.GetFileName(home.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}");
         return true;
     }
 
@@ -1167,7 +1198,7 @@ public partial class MainWindowViewModel : ViewModelBase
         // closings do not wipe the primary session mid-flight.
         if (IsLastMainWindow())
         {
-            SaveSession();
+            SaveSession(immediate: true);
             _recoveryService.MarkCleanExit();
         }
 
@@ -1980,7 +2011,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         Tabs.Move(index, index - 1);
         SaveSession();
-        StatusText = "Moved tab left";
+        SetTransientStatus("Moved tab left");
     }
 
     [RelayCommand]
@@ -1993,14 +2024,14 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         Tabs.Move(index, index + 1);
         SaveSession();
-        StatusText = "Moved tab right";
+        SetTransientStatus("Moved tab right");
     }
 
     [RelayCommand]
     private void SelectCurrentLine()
     {
         GetSelectedEditor()?.SelectCurrentLine();
-        StatusText = "Line selected";
+        SetTransientStatus("Line selected");
     }
 
     [RelayCommand]
@@ -2888,7 +2919,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             StatusText = $"Downloading v{result.LatestVersion}…";
             await _updateService.ApplyUpdateAsync(result);
-            SaveSession();
+            SaveSession(immediate: true);
             StatusText = "Installing update…";
             // Bypass the window Closing prompt; the helper waits for this PID.
             Environment.Exit(0);
@@ -3168,17 +3199,45 @@ public partial class MainWindowViewModel : ViewModelBase
         return desktop.Windows.OfType<MainWindow>().Count() <= 1;
     }
 
-    private void SaveSession()
+    private void SaveSession(bool immediate = false)
     {
-        var state = new SessionState
+        SyncFileWatchers();
+        var state = CaptureSessionState();
+        if (immediate)
+        {
+            _sessionSaveTimer.Stop();
+            _pendingSession = null;
+            _sessionService.SaveSession(state);
+            return;
+        }
+
+        _pendingSession = state;
+        _sessionSaveTimer.Stop();
+        _sessionSaveTimer.Start();
+    }
+
+    private void FlushSaveSession(bool background)
+    {
+        _sessionSaveTimer.Stop();
+        var state = _pendingSession ?? CaptureSessionState();
+        _pendingSession = null;
+        if (background)
+        {
+            var service = _sessionService;
+            _ = Task.Run(() => service.SaveSession(state));
+            return;
+        }
+
+        _sessionService.SaveSession(state);
+    }
+
+    private SessionState CaptureSessionState() =>
+        new()
         {
             SelectedPath = SelectedTab?.FilePath,
             SelectedIndex = SelectedTab == null ? -1 : Tabs.IndexOf(SelectedTab),
             Tabs = Tabs.Select(CaptureSessionTab).ToList()
         };
-        _sessionService.SaveSession(state);
-        SyncFileWatchers();
-    }
 
     private static SessionTabState CaptureSessionTab(DocumentViewModel tab)
     {
@@ -3350,9 +3409,19 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            var entries = Tabs
+            var dirtyTabs = Tabs
                 .Where(t => t.IsDirty || (string.IsNullOrWhiteSpace(t.FilePath) && !string.IsNullOrEmpty(t.Text)))
-                .Select(tab => new RecoveryEntry
+                .ToList();
+            var activeIds = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var tab in dirtyTabs)
+            {
+                activeIds.Add(tab.RecoveryId);
+                if (_recoverySavedVersions.TryGetValue(tab.RecoveryId, out var saved) &&
+                    saved == tab.LspVersion)
+                    continue;
+
+                _recoveryService.SaveEntry(new RecoveryEntry
                 {
                     Id = tab.RecoveryId,
                     FilePath = tab.FilePath,
@@ -3366,10 +3435,21 @@ public partial class MainWindowViewModel : ViewModelBase
                     LanguageOverrideExtension = tab.LanguageOverrideExtension,
                     Line = Math.Max(1, tab.LineNumber),
                     Column = Math.Max(1, tab.ColumnNumber)
-                })
-                .ToList();
+                });
+                _recoverySavedVersions[tab.RecoveryId] = tab.LspVersion;
+            }
 
-            _recoveryService.ReplaceAll(entries);
+            foreach (var staleId in _recoverySavedVersions.Keys.Where(id => !activeIds.Contains(id)).ToList())
+            {
+                _recoveryService.DeleteEntry(staleId);
+                _recoverySavedVersions.Remove(staleId);
+            }
+
+            if (dirtyTabs.Count == 0)
+            {
+                _recoveryService.ClearAll();
+                _recoverySavedVersions.Clear();
+            }
         }
         catch
         {

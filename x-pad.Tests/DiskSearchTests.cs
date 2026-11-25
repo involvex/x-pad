@@ -87,4 +87,49 @@ public class DiskSearchTests
             if (File.Exists(path)) File.Delete(path);
         }
     }
+
+    [Fact]
+    public void Search_decodes_utf16_le_bom_like_FileService()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "xpad-ds-u16-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "notes.txt");
+        try
+        {
+            var bytes = Encoding.Unicode.GetPreamble()
+                .Concat(Encoding.Unicode.GetBytes("findme unique"))
+                .ToArray();
+            File.WriteAllBytes(path, bytes);
+
+            var viaFileService = FileService.Decode(bytes).Text;
+            Assert.Contains("findme", viaFileService);
+
+            var result = DiskSearch.Search(root, "findme", new TabSearchOptions(), maxHits: 10);
+            Assert.Single(result.Hits);
+            Assert.Equal(path, result.Hits[0].Path);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TryReadTextFile_uses_single_decode_path()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "xpad-try-" + Guid.NewGuid().ToString("N") + ".txt");
+        try
+        {
+            var payload = Encoding.UTF8.GetPreamble()
+                .Concat(Encoding.UTF8.GetBytes("hello cafe"))
+                .ToArray();
+            File.WriteAllBytes(path, payload);
+            Assert.True(DiskSearch.TryReadTextFile(path, out var text));
+            Assert.Equal(FileService.Decode(File.ReadAllBytes(path)).Text, text);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

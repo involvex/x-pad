@@ -84,7 +84,31 @@ public sealed class RecoveryService
         if (File.Exists(_cleanExitMarker))
             return false;
 
-        return ListEntries().Count > 0;
+        try
+        {
+            return Directory.EnumerateFiles(_recoveryDir, "*.json").Any();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public void DeleteEntry(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return;
+
+        try
+        {
+            var path = Path.Combine(_recoveryDir, id + ".json");
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch
+        {
+            // Ignore
+        }
     }
 
     public IReadOnlyList<RecoveryEntry> ListEntries()

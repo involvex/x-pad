@@ -31,4 +31,13 @@ public class BracketMatcherTests
         var doc = new TextDocument("((oops)");
         Assert.Null(BracketMatcher.FindMatch(doc, 0));
     }
+
+    [Fact]
+    public void Returns_null_when_match_exceeds_scan_cap()
+    {
+        var open = new string('{', 1);
+        var filler = new string('x', BracketMatcher.MaxScanDistance + 10);
+        var doc = new TextDocument(open + filler + "}");
+        Assert.Null(BracketMatcher.FindMatch(doc, 0));
+    }
 }

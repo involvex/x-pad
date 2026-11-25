@@ -10,10 +10,19 @@
                    Opacity="0.7"
                    Text="{Binding RootPath, FallbackValue='No folder'}"
                    TextTrimming="CharacterEllipsis"
-                   ToolTip.Tip="{Binding RootPath}" />
+                   ToolTip.Tip="{Binding RootPath}"
+                   IsVisible="{Binding HasWorkspace}" />
+        <TextBlock Margin="16,24"
+                   FontSize="12"
+                   Opacity="0.65"
+                   TextWrapping="Wrap"
+                   HorizontalAlignment="Center"
+                   Text="Open a folder (Ctrl+Shift+O)"
+                   IsVisible="{Binding !HasWorkspace}" />
         <TreeView ItemsSource="{Binding Roots}"
                   DoubleTapped="OnTreeDoubleTapped"
-                  KeyDown="OnTreeKeyDown">
+                  KeyDown="OnTreeKeyDown"
+                  IsVisible="{Binding HasWorkspace}">
             <TreeView.ItemTemplate>
                 <TreeDataTemplate ItemsSource="{Binding Children}"
                                   DataType="vm:FileTreeNode">

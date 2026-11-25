@@ -10,6 +10,9 @@ public readonly record struct BracketMatch(int OpenOffset, int CloseOffset);
 /// </summary>
 public static class BracketMatcher
 {
+    /// <summary>Stop scanning after this many characters from the bracket.</summary>
+    public const int MaxScanDistance = 32_768;
+
     private static readonly (char Open, char Close)[] Pairs =
     [
         ('(', ')'),
@@ -62,7 +65,8 @@ public static class BracketMatcher
     private static int ScanForward(TextDocument document, int start, char open, char close)
     {
         var depth = 0;
-        for (var i = start; i < document.TextLength; i++)
+        var limit = Math.Min(document.TextLength, start + MaxScanDistance);
+        for (var i = start; i < limit; i++)
         {
             var c = document.GetCharAt(i);
             if (c == open) depth++;
@@ -80,7 +84,8 @@ public static class BracketMatcher
     private static int ScanBackward(TextDocument document, int start, char open, char close)
     {
         var depth = 0;
-        for (var i = start; i >= 0; i--)
+        var limit = Math.Max(0, start - MaxScanDistance);
+        for (var i = start; i >= limit; i--)
         {
             var c = document.GetCharAt(i);
             if (c == close) depth++;

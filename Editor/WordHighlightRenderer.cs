@@ -11,11 +11,16 @@ namespace x_pad.Editor;
 /// </summary>
 public sealed class WordHighlightRenderer : IBackgroundRenderer
 {
+    public const int MaxMatches = 256;
+    public const int MaxDocumentLength = 2 * 1024 * 1024;
+
     private static readonly IBrush Fill = new SolidColorBrush(Color.FromArgb(55, 180, 180, 80));
 
     private readonly List<TextSegment> _segments = [];
 
     public KnownLayer Layer => KnownLayer.Selection;
+
+    public int MatchCount => _segments.Count;
 
     public void Clear()
     {
@@ -28,33 +33,40 @@ public sealed class WordHighlightRenderer : IBackgroundRenderer
         if (document == null || document.TextLength == 0)
             return;
 
+        if (document.TextLength > MaxDocumentLength)
+            return;
+
         caretOffset = Math.Clamp(caretOffset, 0, document.TextLength);
         var word = GetWordAt(document, caretOffset);
         if (word == null || word.Value.Length < 2)
             return;
 
         var needle = word.Value.Text;
-        var text = document.Text;
+        var needleLen = needle.Length;
         var from = 0;
-        while (from < text.Length)
+        while (from < document.TextLength && _segments.Count < MaxMatches)
         {
-            var index = text.IndexOf(needle, from, StringComparison.Ordinal);
+            var remaining = document.TextLength - from;
+            if (remaining < needleLen)
+                break;
+
+            var index = document.IndexOf(needle, from, remaining, StringComparison.Ordinal);
             if (index < 0)
                 break;
 
-            var beforeOk = index == 0 || !IsWordChar(text[index - 1]);
-            var afterOk = index + needle.Length >= text.Length ||
-                          !IsWordChar(text[index + needle.Length]);
+            var beforeOk = index == 0 || !IsWordChar(document.GetCharAt(index - 1));
+            var afterOk = index + needleLen >= document.TextLength ||
+                          !IsWordChar(document.GetCharAt(index + needleLen));
             if (beforeOk && afterOk)
             {
                 _segments.Add(new TextSegment
                 {
                     StartOffset = index,
-                    Length = needle.Length
+                    Length = needleLen
                 });
             }
 
-            from = index + Math.Max(1, needle.Length);
+            from = index + Math.Max(1, needleLen);
         }
     }
 
