@@ -199,6 +199,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
         EditorThemeService.ApplyAppTheme(_settingsService.Current.Theme);
 
+        // Must exist before OpenWorkspace / session restore — those call SetStatusBaseline via OnWorkspaceChanged.
+        _statusRestoreTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _statusRestoreTimer.Tick += (_, _) =>
+        {
+            _statusRestoreTimer.Stop();
+            StatusText = _statusBaseline;
+        };
+
         var openedFromArgs = false;
         foreach (var folder in CliArgs.ResolveWorkspacePaths(args))
         {
@@ -229,13 +237,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _sessionSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _sessionSaveTimer.Tick += (_, _) => FlushSaveSession(background: true);
-
-        _statusRestoreTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _statusRestoreTimer.Tick += (_, _) =>
-        {
-            _statusRestoreTimer.Stop();
-            StatusText = _statusBaseline;
-        };
 
         _fileWatcher.FileChanged += OnWatchedFileChanged;
         SyncFileWatchers();
