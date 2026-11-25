@@ -49,7 +49,8 @@ public sealed class OpenAiChatClient : IDisposable
 
     public static HttpClient CreateDefaultClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        // Free/routed models can be slow; keep below "forever" but above 8s reasoning budget.
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("X-Pad-AiCompletion");
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return client;
@@ -127,9 +128,27 @@ public sealed class OpenAiChatClient : IDisposable
             var content = TryReadContent(doc.RootElement);
             var cleaned = InlineCompletionPrompt.CleanResponse(content);
             if (cleaned.Length == 0)
+            {
+                var finish = TryReadFinishReason(doc.RootElement);
+                var hasReasoning = HasReasoning(doc.RootElement);
+                if (hasReasoning && string.Equals(finish, "length", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new AiCompletionResult(
+                        false,
+                        "",
+                        "AI used its token budget on reasoning with no insertion text. Try again.",
+                        false);
+                }
+
                 return new AiCompletionResult(false, "", "AI returned an empty suggestion.", false);
+            }
 
             return new AiCompletionResult(true, cleaned, null, false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // HttpClient.Timeout surfaces as TaskCanceledException with a still-open token.
+            return new AiCompletionResult(false, "", "AI request timed out.", false);
         }
         catch (OperationCanceledException)
         {
@@ -152,12 +171,48 @@ public sealed class OpenAiChatClient : IDisposable
         if (first.TryGetProperty("message", out var message) &&
             message.TryGetProperty("content", out var content) &&
             content.ValueKind == JsonValueKind.String)
-            return content.GetString();
+        {
+            var text = content.GetString();
+            if (!string.IsNullOrWhiteSpace(text))
+                return text;
+        }
 
-        if (first.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
-            return text.GetString();
+        if (first.TryGetProperty("text", out var legacy) && legacy.ValueKind == JsonValueKind.String)
+        {
+            var text = legacy.GetString();
+            if (!string.IsNullOrWhiteSpace(text))
+                return text;
+        }
 
         return null;
+    }
+
+    private static string? TryReadFinishReason(JsonElement root)
+    {
+        if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array)
+            return null;
+        if (choices.GetArrayLength() == 0)
+            return null;
+        if (choices[0].TryGetProperty("finish_reason", out var finish) && finish.ValueKind == JsonValueKind.String)
+            return finish.GetString();
+        return null;
+    }
+
+    private static bool HasReasoning(JsonElement root)
+    {
+        if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array)
+            return false;
+        if (choices.GetArrayLength() == 0)
+            return false;
+        if (!choices[0].TryGetProperty("message", out var message))
+            return false;
+        if (message.TryGetProperty("reasoning", out var reasoning) &&
+            reasoning.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(reasoning.GetString()))
+            return true;
+        return message.TryGetProperty("reasoning_details", out var details) &&
+               details.ValueKind == JsonValueKind.Array &&
+               details.GetArrayLength() > 0;
     }
 
     public void Dispose()

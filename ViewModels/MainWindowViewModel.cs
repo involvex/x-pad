@@ -2047,8 +2047,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void TriggerAiCompletion()
     {
+        // DocumentEditor owns status ("suggesting…", errors, accept hint).
         GetSelectedEditor()?.TriggerAiCompletion();
-        StatusText = "AI suggesting…";
     }
 
     [RelayCommand]

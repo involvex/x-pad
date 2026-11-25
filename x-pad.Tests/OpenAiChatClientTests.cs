@@ -104,6 +104,45 @@ public class OpenAiChatClientTests
         Assert.True(result.RateLimited);
     }
 
+    [Fact]
+    public async Task CompleteAsync_EmptyContentWithReasoningBudget_ReportsClearError()
+    {
+        const string body = """
+            {"choices":[{"finish_reason":"length","message":{"role":"assistant","content":"","reasoning":"thinking…"}}]}
+            """;
+        var handler = new CaptureHandler(HttpStatusCode.OK, body);
+        using var http = new HttpClient(handler);
+        using var client = new OpenAiChatClient(http);
+
+        var result = await client.CompleteAsync(new AiCompletionRequest(
+            "http://127.0.0.1:9/v1",
+            "m",
+            null,
+            "sys",
+            "user"), CancellationToken.None);
+
+        Assert.False(result.Ok);
+        Assert.Contains("reasoning", result.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_HttpTimeout_ReturnsErrorNotCancel()
+    {
+        var handler = new DelayHandler(TimeSpan.FromSeconds(5));
+        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(50) };
+        using var client = new OpenAiChatClient(http);
+
+        var result = await client.CompleteAsync(new AiCompletionRequest(
+            "http://127.0.0.1:9/v1",
+            "m",
+            null,
+            "sys",
+            "user"), CancellationToken.None);
+
+        Assert.False(result.Ok);
+        Assert.Contains("timed out", result.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class CaptureHandler : HttpMessageHandler
     {
         private readonly HttpStatusCode _status;

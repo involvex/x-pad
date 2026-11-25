@@ -1932,7 +1932,13 @@ public partial class DocumentEditor : UserControl
         if (_editor == null || _document == null || _settings == null)
             return;
         if (_document.IsLargeFile || _document.IsReadOnly)
+        {
+            if (manual)
+                SetEditorStatus(_document.IsReadOnly
+                    ? "AI completions unavailable in read-only buffers"
+                    : "AI completions skipped for large files");
             return;
+        }
 
         var s = _settings.Current;
         if (!s.AiCompletionEnabled || string.IsNullOrWhiteSpace(s.AiBaseUrl) || string.IsNullOrWhiteSpace(s.AiModel))
@@ -1954,7 +1960,11 @@ public partial class DocumentEditor : UserControl
 
         // Popup list wins over ghost text.
         if (_completionWindow != null)
+        {
+            if (manual)
+                SetEditorStatus("Dismiss the completion list before AI suggest");
             return;
+        }
 
         _aiCompletionCts?.Cancel();
         _aiCompletionCts?.Dispose();
@@ -2016,9 +2026,17 @@ public partial class DocumentEditor : UserControl
                 if (version != _aiCompletionVersion || _editor == null)
                     return;
                 if (_editor.CaretOffset != caret || _changeVersion != docVersion)
+                {
+                    if (manual)
+                        SetEditorStatus("AI suggestion discarded (editor changed)");
                     return;
+                }
                 if (_completionWindow != null)
+                {
+                    if (manual)
+                        SetEditorStatus("AI suggestion discarded (completion list open)");
                     return;
+                }
 
                 var suggestion = InlineGhostSuggestion.FromCleaned(caret, result.Text);
                 if (suggestion == null)
@@ -2038,6 +2056,11 @@ public partial class DocumentEditor : UserControl
         catch (OperationCanceledException)
         {
             // Newer keystroke or detach cancelled this request.
+            if (manual && version == _aiCompletionVersion)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                    SetEditorStatus("AI suggestion cancelled"));
+            }
         }
         catch (Exception ex)
         {
