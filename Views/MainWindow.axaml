@@ -170,6 +170,7 @@
                 <MenuItem Header="_Go to Line..." Command="{Binding GoToLineCommand}" InputGesture="Ctrl+G" />
                 <MenuItem Header="Search _Web" Command="{Binding SearchWebCommand}" />
                 <MenuItem Header="Trigger _Completions" Command="{Binding TriggerCompletionsCommand}" InputGesture="Ctrl+Space" />
+                <MenuItem Header="Trigger _AI Completion" Command="{Binding TriggerAiCompletionCommand}" InputGesture="Ctrl+Alt+Space" />
                 <Separator />
                 <MenuItem Header="Go to _Definition" Command="{Binding GoToDefinitionCommand}" InputGesture="F12" />
                 <MenuItem Header="Find _References" Command="{Binding FindReferencesCommand}" InputGesture="Shift+F12" />

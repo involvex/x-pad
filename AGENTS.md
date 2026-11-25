@@ -85,8 +85,8 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
   SettingsService, RecoveryService, OpenFileWatcher, TabSearch, DiskSearch / DiskReplace,
   WorkspaceService, LargeFilePolicy, FormatService / FormatCommandHelper,
   EditorThemeService, SingleInstanceService, UpdateService (GitHub Releases),
-  LanguageHelper, Lsp/*
-- **Editor/** — completion helpers, IndentStyle detection
+  LanguageHelper, Ai/* (OpenAI-compatible inline completion), Lsp/*
+- **Editor/** — completion helpers, IndentStyle detection, InlineGhostText (AI preview)
 - **Models/** — AppSettings, FileSnapshot, LineEndingKind
 
 ## Features
@@ -108,13 +108,14 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Open Folder (`Ctrl+Shift+O`) + explorer sidebar; View → Explorer opens last workspace or home when none is open; find/replace in folder (`Ctrl+Shift+H`); excludes `.git` / `node_modules` / `bin` / `obj` / `.vs`; LSP `rootUri` follows the workspace folder
 - Optional autosave (prefs: interval seconds; 0 = off)
 - Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles; F12 definition; Shift+F12 references; Ctrl+Shift+. outline; Ctrl+. code actions with WorkspaceEdit text edits)
+- Optional AI ghost-text completions (default `Ctrl+Alt+Space`, Preferences → AI trigger key / Shortcuts; Tab accept) via OpenAI-compatible providers (Kilo / Ollama / custom); off by default
 - Encoding + BOM + CRLF/LF/CR preserved on save; re-decode from kept source bytes (UTF-8 / BOM / UTF-16 LE+BE / Latin-1)
 - Read-only mode (from file attributes + File menu toggle); status-bar `RO` indicator
 - Large-file guard (above 8 MB): plain open, skip folding / word completion / full-text LSP
 - Duplicate/move line, show whitespace, print (Windows), always on top
 - Session restore (`%APPDATA%/XPad/session.json`); dock chrome layout (`layout.json` via `DockLayoutService`, documents from `Tabs` ItemsSource only)
 - Dock.Avalonia shell: `DockControl` in `MainWindow`, explorer/terminal tools under `ViewModels/Dock/`, `DockLayoutSanitizer` strips saved documents on load
-- Settings / Preferences sidebar (`%APPDATA%/XPad/settings.json`) — Editor / Saving / Appearance / Formatter / LSP / Shortcuts / Updates (`KeyBindings` overrides)
+- Settings / Preferences sidebar (`%APPDATA%/XPad/settings.json`) — Editor / Saving / Appearance / Formatter / LSP / AI / Shortcuts / Updates (`KeyBindings` overrides)
 - View menu: checkable toggles, grouped Split / Zoom / Tabs / Folding / Bookmarks / Theme; Encoding under File; Edit → Transform submenu
 - GitHub Releases updater (`Help → Check for Updates`, optional startup check); publish writes `xpad.install.json` for asset matching; MSIX/Store installs skip GitHub updates (`PackageIdentity`)
 - Windows single-instance + named-pipe file handoff; CLI open-or-create paths (`xpad --help`)

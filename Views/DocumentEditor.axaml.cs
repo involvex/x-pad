@@ -22,6 +22,7 @@ using TextMateSharp.Grammars;
 using x_pad.Editor;
 using x_pad.Models;
 using x_pad.Services;
+using x_pad.Services.Ai;
 using x_pad.Services.Lsp;
 using x_pad.ViewModels;
 
@@ -62,6 +63,14 @@ public partial class DocumentEditor : UserControl
     private int _lspCompletionVersion;
     private readonly List<LspContentChange> _pendingLspChanges = [];
     private bool _lspNeedsFullSync;
+    private readonly InlineGhostTextGenerator _ghostGenerator = new();
+    private InlineGhostSuggestion? _ghostSuggestion;
+    private int _ghostDocumentVersion = -1;
+    private CancellationTokenSource? _aiCompletionCts;
+    private int _aiCompletionVersion;
+    private OpenAiChatClient? _aiClient;
+    private DateTime _aiRateLimitedUntilUtc = DateTime.MinValue;
+    private DispatcherTimer? _aiIdleTimer;
 
     public DocumentEditor()
     {
@@ -314,10 +323,17 @@ public partial class DocumentEditor : UserControl
         UninstallOccurrences();
         UninstallWordHighlight();
         UninstallBookmarks();
+        UninstallGhostText();
         _wordHighlightTimer?.Stop();
+        _aiIdleTimer?.Stop();
         _lspCompletionCts?.Cancel();
         _lspCompletionCts?.Dispose();
         _lspCompletionCts = null;
+        _aiCompletionCts?.Cancel();
+        _aiCompletionCts?.Dispose();
+        _aiCompletionCts = null;
+        _aiClient?.Dispose();
+        _aiClient = null;
         _ = CloseLspDocumentAsync();
     }
 
@@ -408,6 +424,17 @@ public partial class DocumentEditor : UserControl
             UpdateWordHighlight();
         };
 
+        _aiIdleTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(500)
+        };
+        _aiIdleTimer.Tick += (_, _) =>
+        {
+            _aiIdleTimer.Stop();
+            _ = RequestAiCompletionAsync(manual: false);
+        };
+
+        InstallGhostText();
         BindDocument();
         ApplySettings();
         ApplySplitLayout();
@@ -457,11 +484,13 @@ public partial class DocumentEditor : UserControl
         UninstallOccurrences();
         UninstallWordHighlight();
         UninstallBookmarks();
+        ClearGhostSuggestion();
         _editor.Document = _document.Document;
         if (_editorSecondary != null)
             _editorSecondary.Document = _document.Document;
         ApplyReadOnlyState();
         _foldingTimer?.Stop();
+        _aiIdleTimer?.Stop();
         _wordListCache.Invalidate();
         _pendingLspChanges.Clear();
         _lspNeedsFullSync = false;
@@ -802,6 +831,9 @@ public partial class DocumentEditor : UserControl
     {
         _changeVersion++;
         var version = _changeVersion;
+        if (_ghostSuggestion is { IsVisible: true } ghost &&
+            ghost.ShouldClearOnDocumentChange(_ghostDocumentVersion, version))
+            ClearGhostSuggestion();
         ScheduleFoldingUpdate();
         AccumulateLspChange(e);
         _ = NotifyLspChangeAsync(version);
@@ -1544,6 +1576,10 @@ public partial class DocumentEditor : UserControl
         UpdateCaretStatus();
         _occurrences?.OnCaretMoved();
         ScheduleCaretSettledHighlights();
+        if (_editor != null &&
+            _ghostSuggestion is { IsVisible: true } ghost &&
+            ghost.ShouldClearOnCaretMove(_editor.CaretOffset))
+            ClearGhostSuggestion();
     }
 
     private void UpdateBracketHighlight()
@@ -1629,6 +1665,7 @@ public partial class DocumentEditor : UserControl
 
         ScheduleCaretSettledHighlights();
         _ = MaybeShowLspCompletionAsync(ch);
+        ScheduleAutomaticAiCompletion();
     }
 
     private void ApplyAutoIndent()
@@ -1676,6 +1713,8 @@ public partial class DocumentEditor : UserControl
     }
 
     public void TriggerWordCompletion() => ShowWordCompletion(force: true);
+
+    public void TriggerAiCompletion() => _ = RequestAiCompletionAsync(manual: true);
 
     private void ShowWordCompletion(bool force)
     {
@@ -1753,6 +1792,8 @@ public partial class DocumentEditor : UserControl
         if (_editor == null)
             return;
 
+        // Word/LSP popup wins over AI ghost text.
+        ClearGhostSuggestion();
         _completionWindow?.Close();
         _completionWindow = new CompletionWindow(_editor.TextArea);
         var prefix = GetWordBeforeCaret();
@@ -1785,9 +1826,29 @@ public partial class DocumentEditor : UserControl
 
     private void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && _occurrences is { Count: > 0 })
+        if (e.Key == Key.Escape)
         {
-            _occurrences.Clear();
+            if (_ghostSuggestion is { IsVisible: true })
+            {
+                ClearGhostSuggestion();
+                e.Handled = true;
+                return;
+            }
+
+            if (_occurrences is { Count: > 0 })
+            {
+                _occurrences.Clear();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (e.Key == Key.Tab &&
+            !e.KeyModifiers.HasFlag(KeyModifiers.Control) &&
+            !e.KeyModifiers.HasFlag(KeyModifiers.Alt) &&
+            _completionWindow == null &&
+            TryAcceptGhostSuggestion())
+        {
             e.Handled = true;
             return;
         }
@@ -1810,6 +1871,189 @@ public partial class DocumentEditor : UserControl
             _ = ShowLspHoverAsync();
             e.Handled = true;
         }
+    }
+
+    private void InstallGhostText()
+    {
+        if (_editor == null)
+            return;
+        if (!_editor.TextArea.TextView.ElementGenerators.Contains(_ghostGenerator))
+            _editor.TextArea.TextView.ElementGenerators.Add(_ghostGenerator);
+    }
+
+    private void UninstallGhostText()
+    {
+        if (_editor != null)
+            _editor.TextArea.TextView.ElementGenerators.Remove(_ghostGenerator);
+        ClearGhostSuggestion();
+    }
+
+    private void ClearGhostSuggestion()
+    {
+        if (_ghostSuggestion == null && _ghostGenerator.Suggestion == null)
+            return;
+
+        _ghostSuggestion = null;
+        _ghostGenerator.Suggestion = null;
+        _ghostDocumentVersion = -1;
+        _editor?.TextArea.TextView.Redraw();
+    }
+
+    private bool TryAcceptGhostSuggestion()
+    {
+        if (_editor?.Document == null || _ghostSuggestion is not { IsVisible: true } ghost)
+            return false;
+
+        var insert = ghost.TryAccept(_editor.CaretOffset);
+        if (insert == null)
+            return false;
+
+        ClearGhostSuggestion();
+        var offset = _editor.CaretOffset;
+        _editor.Document.Insert(offset, insert);
+        _editor.CaretOffset = offset + insert.Length;
+        SetEditorStatus("AI completion accepted");
+        return true;
+    }
+
+    private void ScheduleAutomaticAiCompletion()
+    {
+        if (_aiIdleTimer == null || _settings?.Current is not { } s)
+            return;
+        if (!s.AiCompletionEnabled || !s.AiAutomatic || string.IsNullOrWhiteSpace(s.AiBaseUrl))
+            return;
+
+        _aiIdleTimer.Stop();
+        _aiIdleTimer.Start();
+    }
+
+    private async Task RequestAiCompletionAsync(bool manual)
+    {
+        if (_editor == null || _document == null || _settings == null)
+            return;
+        if (_document.IsLargeFile || _document.IsReadOnly)
+            return;
+
+        var s = _settings.Current;
+        if (!s.AiCompletionEnabled || string.IsNullOrWhiteSpace(s.AiBaseUrl) || string.IsNullOrWhiteSpace(s.AiModel))
+        {
+            if (manual)
+                SetEditorStatus("AI completions are off — enable them in Preferences → AI");
+            return;
+        }
+
+        if (!manual && !s.AiAutomatic)
+            return;
+
+        if (DateTime.UtcNow < _aiRateLimitedUntilUtc)
+        {
+            if (manual)
+                SetEditorStatus("AI rate limited — waiting before next request");
+            return;
+        }
+
+        // Popup list wins over ghost text.
+        if (_completionWindow != null)
+            return;
+
+        _aiCompletionCts?.Cancel();
+        _aiCompletionCts?.Dispose();
+        _aiCompletionCts = new CancellationTokenSource();
+        var ct = _aiCompletionCts.Token;
+        var version = ++_aiCompletionVersion;
+        var caret = _editor.CaretOffset;
+        var text = _editor.Document.Text;
+        var docVersion = _changeVersion;
+
+        var (prefix, suffix) = InlineCompletionPrompt.ExtractContext(text, caret);
+        var language = _document.Language;
+        if (string.IsNullOrWhiteSpace(language) || language == "Plain Text")
+        {
+            var probe = LanguageHelper.GetProbePath(_document.FilePath, _document.LanguageOverrideExtension);
+            language = Path.GetExtension(probe ?? "")?.TrimStart('.') ?? "text";
+        }
+
+        var userMessage = InlineCompletionPrompt.BuildUserMessage(prefix, suffix, language);
+        _aiClient ??= new OpenAiChatClient();
+
+        if (manual)
+            SetEditorStatus("AI suggesting…");
+
+        try
+        {
+            var result = await _aiClient.CompleteAsync(
+                new AiCompletionRequest(
+                    s.AiBaseUrl,
+                    s.AiModel,
+                    s.AiApiKey,
+                    InlineCompletionPrompt.SystemPrompt,
+                    userMessage),
+                ct).ConfigureAwait(false);
+
+            if (version != _aiCompletionVersion || ct.IsCancellationRequested)
+                return;
+
+            if (result.RateLimited)
+            {
+                _aiRateLimitedUntilUtc = DateTime.UtcNow.AddMinutes(1);
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                    SetEditorStatus(result.Error ?? "AI rate limited (429)"));
+                return;
+            }
+
+            if (!result.Ok)
+            {
+                if (manual)
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                        SetEditorStatus(result.Error ?? "AI suggestion failed"));
+                }
+                return;
+            }
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (version != _aiCompletionVersion || _editor == null)
+                    return;
+                if (_editor.CaretOffset != caret || _changeVersion != docVersion)
+                    return;
+                if (_completionWindow != null)
+                    return;
+
+                var suggestion = InlineGhostSuggestion.FromCleaned(caret, result.Text);
+                if (suggestion == null)
+                {
+                    if (manual)
+                        SetEditorStatus("AI returned an empty suggestion");
+                    return;
+                }
+
+                _ghostSuggestion = suggestion;
+                _ghostDocumentVersion = docVersion;
+                _ghostGenerator.Suggestion = suggestion;
+                _editor.TextArea.TextView.Redraw();
+                SetEditorStatus("AI suggestion — Tab to accept, Esc to dismiss");
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Newer keystroke or detach cancelled this request.
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                    SetEditorStatus($"AI error: {ex.Message}"));
+            }
+        }
+    }
+
+    private void SetEditorStatus(string text)
+    {
+        var window = this.FindAncestorOfType<MainWindow>();
+        if (window?.DataContext is MainWindowViewModel vm)
+            vm.StatusText = text;
     }
 
     private async Task ShowLspHoverAsync()

@@ -152,6 +152,74 @@
                                  FontSize="12" />
                     </StackPanel>
 
+                    <!-- AI completions -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsAiPage}">
+                        <TextBlock Text="AI completions" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock Text="Optional ghost-text suggestions via any OpenAI-compatible chat API (Kilo, Ollama, LM Studio, OpenCode proxy). Remote providers receive buffer text around the caret. Off by default."
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Kilo Free"
+                                    Command="{Binding ApplyKiloFreePresetCommand}"
+                                    ToolTip.Tip="https://api.kilo.ai/api/gateway · kilo-auto/free (manual; ~200 req/h)" />
+                            <Button Content="Ollama"
+                                    Command="{Binding ApplyOllamaPresetCommand}"
+                                    ToolTip.Tip="http://127.0.0.1:11434/v1 — local server must already be running" />
+                        </StackPanel>
+                        <CheckBox Content="Enable AI completions"
+                                  IsChecked="{Binding AiCompletionEnabled}" />
+                        <CheckBox Content="Automatic after typing pause"
+                                  IsChecked="{Binding AiAutomatic}"
+                                  ToolTip.Tip="Off recommended for free remote gateways (rate limits). Prefer on for local models." />
+                        <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="12"
+                              DataContext="{Binding AiTriggerShortcut}">
+                            <TextBlock Grid.Column="0" Text="Trigger key" VerticalAlignment="Center" />
+                            <TextBox Grid.Column="1"
+                                     Classes="shortcutCapture"
+                                     Text="{Binding Gesture}"
+                                     FontFamily="Cascadia Code, Consolas, monospace"
+                                     FontSize="12"
+                                     IsReadOnly="True"
+                                     PlaceholderText="Press keys…"
+                                     ToolTip.Tip="Click, then press the new shortcut. Esc restores the default." />
+                            <Button Grid.Column="2"
+                                    Content="Reset"
+                                    Command="{Binding #RootWindow.((vm:PreferencesViewModel)DataContext).ResetShortcutCommand}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="12">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Base URL" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="0" Grid.Column="1"
+                                     Text="{Binding AiBaseUrl}"
+                                     PlaceholderText="https://api.kilo.ai/api/gateway"
+                                     FontFamily="Cascadia Code, Consolas, monospace"
+                                     FontSize="12" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="API key" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="1" Grid.Column="1"
+                                     Text="{Binding AiApiKey}"
+                                     PasswordChar="•"
+                                     PlaceholderText="Optional — leave empty for anonymous free endpoints"
+                                     FontFamily="Cascadia Code, Consolas, monospace"
+                                     FontSize="12" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Model" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="2" Grid.Column="1"
+                                     Text="{Binding AiModel}"
+                                     PlaceholderText="kilo-auto/free"
+                                     FontFamily="Cascadia Code, Consolas, monospace"
+                                     FontSize="12" />
+                        </Grid>
+                        <TextBlock Text="{Binding ShortcutConflict}"
+                                   Foreground="#E81123"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Default trigger is Ctrl+Alt+Space (also under Shortcuts). Tab accepts ghost text; Esc dismisses. Custom base URL works for OpenCode Zen/proxies and LM Studio (port 1234)."
+                                   Opacity="0.7"
+                                   FontSize="11"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
                     <!-- Shortcuts -->
                     <StackPanel Spacing="12" IsVisible="{Binding IsShortcutsPage}">
                         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
