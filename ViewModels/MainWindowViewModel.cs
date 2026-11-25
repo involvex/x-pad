@@ -2045,6 +2045,13 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void TriggerAiCompletion()
+    {
+        GetSelectedEditor()?.TriggerAiCompletion();
+        StatusText = "AI suggesting…";
+    }
+
+    [RelayCommand]
     private void FoldAll()
     {
         GetSelectedEditor()?.FoldAll();
@@ -2629,6 +2636,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Select All Occurrences", "Ctrl+Shift+L", "Edit", () => { SelectAllOccurrences(); return Task.CompletedTask; }),
             Entry("Edit: Select Current Line", "Ctrl+L", "Edit", () => { SelectCurrentLine(); return Task.CompletedTask; }),
             Entry("Edit: Trigger Completions", "Ctrl+Space", "Edit", () => { TriggerCompletions(); return Task.CompletedTask; }),
+            Entry("Edit: Trigger AI Completion", "Ctrl+Alt+Space", "Edit", () => { TriggerAiCompletion(); return Task.CompletedTask; }),
             Entry("Edit: Jump to Matching Bracket", "Ctrl+M", "Edit", () => { JumpToMatchingBracket(); return Task.CompletedTask; }),
 
             Entry("View: Language Auto", null, "View", () => { SetLanguage(""); return Task.CompletedTask; }),
@@ -2808,6 +2816,11 @@ public partial class MainWindowViewModel : ViewModelBase
             s.FormatOnSave = dialog.Result.FormatOnSave;
             s.FormatExtensions = dialog.Result.FormatExtensions;
             s.LanguageServers = dialog.Result.LanguageServers;
+            s.AiCompletionEnabled = dialog.Result.AiCompletionEnabled;
+            s.AiBaseUrl = dialog.Result.AiBaseUrl;
+            s.AiApiKey = dialog.Result.AiApiKey;
+            s.AiModel = dialog.Result.AiModel;
+            s.AiAutomatic = dialog.Result.AiAutomatic;
             s.CheckForUpdatesOnStartup = dialog.Result.CheckForUpdatesOnStartup;
             s.KeyBindings = dialog.Result.KeyBindings;
         });

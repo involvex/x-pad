@@ -60,6 +60,7 @@ public static class KeyBindingCatalog
         new("SelectAllOccurrences", "Select all occurrences", "Ctrl+Shift+L", "SelectAllOccurrencesCommand"),
         new("SelectCurrentLine", "Select current line", "Ctrl+L", "SelectCurrentLineCommand"),
         new("TriggerCompletions", "Trigger completions", "Ctrl+Space", "TriggerCompletionsCommand"),
+        new("TriggerAiCompletion", "Trigger AI completion", "Ctrl+Alt+Space", "TriggerAiCompletionCommand"),
         new("ToggleLineComment", "Toggle line comment", "Ctrl+OemQuestion", "ToggleLineCommentCommand", "Ctrl+Divide"),
         new("FormatDocument", "Format document", "Shift+Alt+F", "FormatDocumentCommand"),
         new("UpperCase", "Upper case", "Ctrl+U", "UpperCaseCommand"),

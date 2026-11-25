@@ -59,6 +59,24 @@ public sealed class AppSettings
     };
 
     /// <summary>
+    /// When true and <see cref="AiBaseUrl"/> is set, AI ghost-text completions are available
+    /// (manual shortcut; optional automatic after idle).
+    /// </summary>
+    public bool AiCompletionEnabled { get; set; }
+
+    /// <summary>OpenAI-compatible API base, e.g. https://api.kilo.ai/api/gateway</summary>
+    public string AiBaseUrl { get; set; } = "";
+
+    /// <summary>Optional Bearer token. Empty omits Authorization (anonymous free endpoints).</summary>
+    public string AiApiKey { get; set; } = "";
+
+    /// <summary>Model id passed to chat/completions (e.g. kilo-auto/free).</summary>
+    public string AiModel { get; set; } = "";
+
+    /// <summary>When true, request a suggestion after typing pauses (~500 ms).</summary>
+    public bool AiAutomatic { get; set; }
+
+    /// <summary>
     /// Optional key-binding overrides keyed by <see cref="Services.KeyBindingCatalog"/> id.
     /// Missing or blank entries use the catalog default.
     /// </summary>

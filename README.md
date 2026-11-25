@@ -13,6 +13,7 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 - VS Code-style shortcuts by default (`Ctrl+P` Quick Open, `Ctrl+D` multi-cursor, `Ctrl+B` Explorer; Preferences → Shortcuts → VS Code)
 - Find / replace, find/replace in open tabs (regex, whole word), bookmarks, bracket match, multi-occurrence edit
 - Completions + optional stdio LSP (hover, F12 definition, Shift+F12 references, outline, Ctrl+. code actions / text edits)
+- Optional AI ghost-text completions (default `Ctrl+Alt+Space`, configurable in Preferences → AI) via any OpenAI-compatible API (Kilo Free, Ollama, custom); Tab accepts, Esc dismisses
 - Encoding / BOM / line endings preserved on save; re-decode from disk bytes (incl. UTF-16 BE)
 - Read-only buffers, crash recovery for dirty/untitled tabs, live external-change watching
 - Large-file guard (8 MB+): open as plain text without folding / word completion / LSP
@@ -105,7 +106,7 @@ Stored under `%APPDATA%\XPad\`:
 - `layout.json` — dock splitter positions and tool panel state (not open file tabs)
 - `recovery/` — dirty/untitled buffer snapshots (cleared on clean exit)
 
-Preferences (`Ctrl+,`) use a sidebar: Editor, Saving, Appearance, Formatter, Language servers, Shortcuts, Updates. Shortcut overrides are stored in `settings.json` (`KeyBindings`); blank/missing entries keep the built-in defaults.
+Preferences (`Ctrl+,`) use a sidebar: Editor, Saving, Appearance, Formatter, Language servers, AI, Shortcuts, Updates. Shortcut overrides are stored in `settings.json` (`KeyBindings`); blank/missing entries keep the built-in defaults. AI completions are off until you set a base URL / model (presets for Kilo Free and Ollama).
 
 ## Updates
 

@@ -40,9 +40,15 @@ public partial class PreferencesViewModel : ViewModelBase
         new() { Id = "appearance", Title = "Appearance" },
         new() { Id = "formatter", Title = "Formatter" },
         new() { Id = "lsp", Title = "Language servers" },
+        new() { Id = "ai", Title = "AI" },
         new() { Id = "shortcuts", Title = "Shortcuts" },
         new() { Id = "updates", Title = "Updates" }
     ];
+
+    public const string KiloFreeBaseUrl = "https://api.kilo.ai/api/gateway";
+    public const string KiloFreeModel = "kilo-auto/free";
+    public const string OllamaBaseUrl = "http://127.0.0.1:11434/v1";
+    public const string OllamaDefaultModel = "qwen2.5-coder:1.5b";
 
     public ObservableCollection<ShortcutBindingItem> ShortcutBindings { get; } = [];
 
@@ -115,6 +121,21 @@ public partial class PreferencesViewModel : ViewModelBase
     private string languageServersText = "";
 
     [ObservableProperty]
+    private bool aiCompletionEnabled;
+
+    [ObservableProperty]
+    private string aiBaseUrl = "";
+
+    [ObservableProperty]
+    private string aiApiKey = "";
+
+    [ObservableProperty]
+    private string aiModel = "";
+
+    [ObservableProperty]
+    private bool aiAutomatic;
+
+    [ObservableProperty]
     private bool checkForUpdatesOnStartup = true;
 
     [ObservableProperty]
@@ -133,8 +154,13 @@ public partial class PreferencesViewModel : ViewModelBase
     public bool IsAppearancePage => SelectedPage?.Id == "appearance";
     public bool IsFormatterPage => SelectedPage?.Id == "formatter";
     public bool IsLspPage => SelectedPage?.Id == "lsp";
+    public bool IsAiPage => SelectedPage?.Id == "ai";
     public bool IsShortcutsPage => SelectedPage?.Id == "shortcuts";
     public bool IsUpdatesPage => SelectedPage?.Id == "updates";
+
+    /// <summary>Same binding as Shortcuts → Trigger AI completion; edited from the AI page too.</summary>
+    public ShortcutBindingItem? AiTriggerShortcut =>
+        ShortcutBindings.FirstOrDefault(b => b.Id == "TriggerAiCompletion");
 
     partial void OnSelectedPageChanged(PreferencesPage? value)
     {
@@ -143,6 +169,7 @@ public partial class PreferencesViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsAppearancePage));
         OnPropertyChanged(nameof(IsFormatterPage));
         OnPropertyChanged(nameof(IsLspPage));
+        OnPropertyChanged(nameof(IsAiPage));
         OnPropertyChanged(nameof(IsShortcutsPage));
         OnPropertyChanged(nameof(IsUpdatesPage));
     }
@@ -169,6 +196,11 @@ public partial class PreferencesViewModel : ViewModelBase
         FormatOnSave = settings.FormatOnSave;
         FormatExtensions = settings.FormatExtensions;
         LanguageServersText = FormatServers(settings.LanguageServers);
+        AiCompletionEnabled = settings.AiCompletionEnabled;
+        AiBaseUrl = settings.AiBaseUrl ?? "";
+        AiApiKey = settings.AiApiKey ?? "";
+        AiModel = settings.AiModel ?? "";
+        AiAutomatic = settings.AiAutomatic;
         CheckForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
         LoadShortcuts(settings.KeyBindings);
     }
@@ -197,14 +229,41 @@ public partial class PreferencesViewModel : ViewModelBase
             FormatOnSave = FormatOnSave,
             FormatExtensions = FormatExtensions.Trim(),
             LanguageServers = ParseServers(LanguageServersText),
+            AiCompletionEnabled = AiCompletionEnabled,
+            AiBaseUrl = AiBaseUrl.Trim(),
+            AiApiKey = AiApiKey.Trim(),
+            AiModel = AiModel.Trim(),
+            AiAutomatic = AiAutomatic,
             CheckForUpdatesOnStartup = CheckForUpdatesOnStartup,
             LastUpdateCheckUtc = original.LastUpdateCheckUtc,
             RecentFiles = [.. original.RecentFiles],
             MaxRecentFiles = original.MaxRecentFiles,
             FavoriteFiles = [.. original.FavoriteFiles],
             MaxFavoriteFiles = original.MaxFavoriteFiles,
+            LastWorkspacePath = original.LastWorkspacePath,
+            WorkspaceExcludeNames = [.. original.WorkspaceExcludeNames],
             KeyBindings = BuildKeyBindingOverrides()
         };
+    }
+
+    [RelayCommand]
+    private void ApplyKiloFreePreset()
+    {
+        AiCompletionEnabled = true;
+        AiBaseUrl = KiloFreeBaseUrl;
+        AiModel = KiloFreeModel;
+        AiAutomatic = false;
+    }
+
+    [RelayCommand]
+    private void ApplyOllamaPreset()
+    {
+        AiCompletionEnabled = true;
+        AiBaseUrl = OllamaBaseUrl;
+        if (string.IsNullOrWhiteSpace(AiModel) ||
+            string.Equals(AiModel, KiloFreeModel, StringComparison.OrdinalIgnoreCase))
+            AiModel = OllamaDefaultModel;
+        AiAutomatic = true;
     }
 
     public string? ValidateShortcuts()
@@ -253,6 +312,7 @@ public partial class PreferencesViewModel : ViewModelBase
         }
 
         ShortcutConflict = "";
+        OnPropertyChanged(nameof(AiTriggerShortcut));
     }
 
     private Dictionary<string, string> BuildKeyBindingOverrides()
