@@ -2,6 +2,10 @@
 
 
 
+
+## 0.5.8 - 2026-11-25
+
+- fix(startup): init status timer before workspace restore
 ## 0.5.7 - 2026-11-25
 
 - perf(session): restore tabs after first paint without blocking startup
