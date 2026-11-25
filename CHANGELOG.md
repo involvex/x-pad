@@ -1,6 +1,14 @@
 # Changelog
 
 
+
+## 0.5.7 - 2026-11-25
+
+- perf(session): restore tabs after first paint without blocking startup
+- perf(lsp): send incremental didChange when the server supports it
+- perf: cut typing, search, and session I/O jank
+- feat(ui): add File → New Window with independent tabs
+- docs: add Microsoft Store listing URL
 ## 0.5.6 - 2026-11-24
 
 - feat(ui): fix favorites, explorer home, menus, and unsaved session restore
