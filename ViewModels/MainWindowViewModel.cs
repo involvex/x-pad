@@ -54,6 +54,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _recoveryPromptScheduled;
     private string _statusBaseline = "Ready";
     private SessionState? _pendingSession;
+    private bool _restoringSession;
+    private int _sessionRestoreGeneration;
     private IReadOnlyList<LspDiagnostic> _selectedTabDiagnostics = [];
     private readonly DockLayoutService _dockLayout = new();
     private DockControl? _dockControl;
@@ -214,7 +216,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             TryRestoreLastWorkspace();
             if (restoreSession)
-                RestoreSession();
+                ScheduleSessionRestore();
         }
 
         if (Tabs.Count == 0)
@@ -3201,6 +3203,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void SaveSession(bool immediate = false)
     {
+        if (_restoringSession && !immediate)
+            return;
+
         SyncFileWatchers();
         var state = CaptureSessionState();
         if (immediate)
@@ -3259,40 +3264,147 @@ public partial class MainWindowViewModel : ViewModelBase
         };
     }
 
-    private void RestoreSession()
+    private void ScheduleSessionRestore()
     {
-        var state = _sessionService.LoadSession();
-        DocumentViewModel? selected = null;
-        var index = 0;
+        SetStatusBaseline("Restoring session…");
+        var generation = ++_sessionRestoreGeneration;
+        Dispatcher.UIThread.Post(() => _ = RestoreSessionAsync(generation), DispatcherPriority.Background);
+    }
 
-        foreach (var entry in state.Tabs)
+    private async Task RestoreSessionAsync(int generation)
+    {
+        _restoringSession = true;
+        try
         {
+            SessionState state;
             try
             {
-                var tab = RestoreSessionTab(entry);
-                if (tab == null)
-                    continue;
-
-                Tabs.Add(tab);
-
-                if (state.SelectedIndex >= 0 && state.SelectedIndex == index)
-                    selected = tab;
-                else if (state.SelectedIndex < 0 &&
-                         state.SelectedPath != null &&
-                         !string.IsNullOrWhiteSpace(entry.Path) &&
-                         string.Equals(state.SelectedPath, entry.Path, StringComparison.OrdinalIgnoreCase))
-                    selected = tab;
-
-                index++;
+                state = await Task.Run(() => _sessionService.LoadSession());
             }
             catch
             {
-                // Skip unreadable session entries
+                state = new SessionState();
             }
+
+            if (generation != _sessionRestoreGeneration)
+                return;
+
+            DocumentViewModel? placeholder = null;
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                placeholder = Tabs.FirstOrDefault(IsUntouchedPlaceholder);
+            });
+
+            DocumentViewModel? selected = null;
+            var index = 0;
+
+            foreach (var entry in state.Tabs)
+            {
+                if (generation != _sessionRestoreGeneration)
+                    return;
+
+                DocumentViewModel? tab;
+                try
+                {
+                    tab = await RestoreSessionTabAsync(entry);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (tab == null)
+                    continue;
+
+                var captureIndex = index;
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    Tabs.Add(tab);
+
+                    if (state.SelectedIndex >= 0 && state.SelectedIndex == captureIndex)
+                        selected = tab;
+                    else if (state.SelectedIndex < 0 &&
+                             state.SelectedPath != null &&
+                             !string.IsNullOrWhiteSpace(entry.Path) &&
+                             string.Equals(state.SelectedPath, entry.Path, StringComparison.OrdinalIgnoreCase))
+                        selected = tab;
+                });
+
+                index++;
+            }
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (generation != _sessionRestoreGeneration)
+                    return;
+
+                if (placeholder != null &&
+                    Tabs.Contains(placeholder) &&
+                    IsUntouchedPlaceholder(placeholder) &&
+                    Tabs.Any(t => !ReferenceEquals(t, placeholder)))
+                {
+                    Tabs.Remove(placeholder);
+                }
+
+                if (Tabs.Count > 0)
+                    SelectedTab = selected ?? Tabs[0];
+                else
+                    NewTab();
+
+                SyncFileWatchers();
+                SetStatusBaseline(_workspace.Root == null
+                    ? "Ready"
+                    : $"Folder: {Path.GetFileName(_workspace.Root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}");
+            });
+        }
+        finally
+        {
+            _restoringSession = false;
+        }
+    }
+
+    private static bool IsUntouchedPlaceholder(DocumentViewModel tab) =>
+        string.IsNullOrWhiteSpace(tab.FilePath) &&
+        !tab.IsDirty &&
+        string.IsNullOrEmpty(tab.Text);
+
+    private async Task<DocumentViewModel?> RestoreSessionTabAsync(SessionTabState entry)
+    {
+        var hasPath = !string.IsNullOrWhiteSpace(entry.Path);
+        if (hasPath && entry.Text == null)
+        {
+            var path = entry.Path!;
+            var snapshot = await Task.Run(() =>
+            {
+                try
+                {
+                    if (!File.Exists(path))
+                        return null;
+                    return _fileService.ReadFile(path);
+                }
+                catch
+                {
+                    return null;
+                }
+            });
+
+            if (snapshot == null)
+                return null;
+
+            var diskTab = new DocumentViewModel
+            {
+                WordWrap = WordWrap,
+                FontSize = _settingsService.Current.FontSize,
+                FontFamily = _settingsService.Current.FontFamily,
+                LanguageOverrideExtension = entry.LanguageOverrideExtension,
+                PendingRestoreLine = Math.Max(1, entry.Line),
+                PendingRestoreColumn = Math.Max(1, entry.Column)
+            };
+            diskTab.ApplySnapshot(snapshot, path, _settingsService.Current.InsertSpaces);
+            return diskTab;
         }
 
-        if (Tabs.Count > 0)
-            SelectedTab = selected ?? Tabs[0];
+        return RestoreSessionTab(entry);
     }
 
     private DocumentViewModel? RestoreSessionTab(SessionTabState entry)
