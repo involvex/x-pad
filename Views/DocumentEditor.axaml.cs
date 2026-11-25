@@ -60,6 +60,8 @@ public partial class DocumentEditor : UserControl
     private readonly WordListCache _wordListCache = new();
     private CancellationTokenSource? _lspCompletionCts;
     private int _lspCompletionVersion;
+    private readonly List<LspContentChange> _pendingLspChanges = [];
+    private bool _lspNeedsFullSync;
 
     public DocumentEditor()
     {
@@ -461,6 +463,8 @@ public partial class DocumentEditor : UserControl
         ApplyReadOnlyState();
         _foldingTimer?.Stop();
         _wordListCache.Invalidate();
+        _pendingLspChanges.Clear();
+        _lspNeedsFullSync = false;
         if (_document.IsLargeFile)
         {
             UninstallFolding();
@@ -799,7 +803,33 @@ public partial class DocumentEditor : UserControl
         _changeVersion++;
         var version = _changeVersion;
         ScheduleFoldingUpdate();
+        AccumulateLspChange(e);
         _ = NotifyLspChangeAsync(version);
+    }
+
+    private void AccumulateLspChange(DocumentChangeEventArgs e)
+    {
+        if (_document?.IsLargeFile == true || _editor?.Document == null)
+            return;
+
+        // Huge paste/replace: one full sync is cheaper and safer than a giant incremental list.
+        if (e.RemovalLength + e.InsertionLength > 256_000)
+        {
+            _pendingLspChanges.Clear();
+            _lspNeedsFullSync = true;
+            return;
+        }
+
+        if (_lspNeedsFullSync)
+            return;
+
+        if (LspContentChangeFactory.TryFromDocumentChange(_editor.Document, e, out var change))
+            _pendingLspChanges.Add(change);
+        else
+        {
+            _pendingLspChanges.Clear();
+            _lspNeedsFullSync = true;
+        }
     }
 
     private void ScheduleFoldingUpdate()
@@ -1934,7 +1964,15 @@ public partial class DocumentEditor : UserControl
         if (uri == null)
             return;
 
-        await client.DidChangeAsync(uri, _document.Text, _document.LspVersion);
+        var needsFull = _lspNeedsFullSync || _pendingLspChanges.Count == 0;
+        var incremental = needsFull ? Array.Empty<LspContentChange>() : _pendingLspChanges.ToArray();
+        _pendingLspChanges.Clear();
+        _lspNeedsFullSync = false;
+
+        if (needsFull || !client.SupportsIncrementalSync)
+            await client.DidChangeAsync(uri, _document.Text, _document.LspVersion);
+        else
+            await client.DidChangeAsync(uri, _document.LspVersion, incremental, _document.Text);
     }
 
     private async Task CloseLspDocumentAsync()

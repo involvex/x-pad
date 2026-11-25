@@ -30,7 +30,11 @@ public sealed class LspClient : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private int _nextId = 1;
     private bool _initialized;
+    private bool _supportsIncrementalSync;
     private readonly string _rootUri;
+
+    /// <summary>True when the server advertised incremental <c>textDocumentSync</c>.</summary>
+    public bool SupportsIncrementalSync => _supportsIncrementalSync;
 
     public event Action<string, IReadOnlyList<LspDiagnostic>>? DiagnosticsReceived;
 
@@ -132,7 +136,8 @@ public sealed class LspClient : IAsyncDisposable
             }
         };
 
-        await RequestAsync("initialize", init);
+        var result = await RequestAsync("initialize", init);
+        _supportsIncrementalSync = LspCapabilities.SupportsIncrementalSync(result);
         await NotifyAsync("initialized", new JsonObject());
         _initialized = true;
     }
@@ -152,9 +157,63 @@ public sealed class LspClient : IAsyncDisposable
         });
     }
 
-    public async Task DidChangeAsync(string uri, string text, int version)
+    /// <summary>Full-document sync (always valid).</summary>
+    public Task DidChangeAsync(string uri, string text, int version) =>
+        DidChangeAsync(uri, version, fullText: text, incremental: null);
+
+    /// <summary>Incremental sync when the server supports it; otherwise falls back to <paramref name="fullTextFallback"/>.</summary>
+    public Task DidChangeAsync(
+        string uri,
+        int version,
+        IReadOnlyList<LspContentChange> incremental,
+        string fullTextFallback) =>
+        DidChangeAsync(
+            uri,
+            version,
+            fullText: _supportsIncrementalSync && incremental.Count > 0 ? null : fullTextFallback,
+            incremental: _supportsIncrementalSync && incremental.Count > 0 ? incremental : null);
+
+    private async Task DidChangeAsync(
+        string uri,
+        int version,
+        string? fullText,
+        IReadOnlyList<LspContentChange>? incremental)
     {
         if (!_initialized) return;
+
+        JsonArray contentChanges;
+        if (incremental is { Count: > 0 })
+        {
+            contentChanges = new JsonArray();
+            foreach (var change in incremental)
+            {
+                contentChanges.Add(new JsonObject
+                {
+                    ["range"] = new JsonObject
+                    {
+                        ["start"] = new JsonObject
+                        {
+                            ["line"] = change.StartLine,
+                            ["character"] = change.StartCharacter
+                        },
+                        ["end"] = new JsonObject
+                        {
+                            ["line"] = change.EndLine,
+                            ["character"] = change.EndCharacter
+                        }
+                    },
+                    ["text"] = change.Text
+                });
+            }
+        }
+        else
+        {
+            contentChanges = new JsonArray
+            {
+                new JsonObject { ["text"] = fullText ?? "" }
+            };
+        }
+
         await NotifyAsync("textDocument/didChange", new JsonObject
         {
             ["textDocument"] = new JsonObject
@@ -162,10 +221,7 @@ public sealed class LspClient : IAsyncDisposable
                 ["uri"] = uri,
                 ["version"] = version
             },
-            ["contentChanges"] = new JsonArray
-            {
-                new JsonObject { ["text"] = text }
-            }
+            ["contentChanges"] = contentChanges
         });
     }
 
