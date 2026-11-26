@@ -16,16 +16,55 @@
             <ColumnDefinition Width="0" />
         </Grid.ColumnDefinitions>
 
-        <AvaloniaEdit:TextEditor x:Name="Editor"
-                                 Grid.Row="0"
-                                 Grid.Column="0"
-                                 Grid.RowSpan="3"
-                                 Grid.ColumnSpan="1"
-                                 ShowLineNumbers="True"
-                                 FontSize="{Binding FontSize}"
-                                 HorizontalScrollBarVisibility="Auto"
-                                 VerticalScrollBarVisibility="Auto"
-                                 WordWrap="{Binding WordWrap}" />
+        <!-- Editor + VS Code–style ghost overlay (real UI; AvaloniaEdit Caret-layer redraw is unreliable). -->
+        <Grid Grid.Row="0"
+              Grid.Column="0"
+              Grid.RowSpan="3"
+              Grid.ColumnSpan="1">
+            <AvaloniaEdit:TextEditor x:Name="Editor"
+                                     ShowLineNumbers="True"
+                                     FontSize="{Binding FontSize}"
+                                     HorizontalScrollBarVisibility="Auto"
+                                     VerticalScrollBarVisibility="Auto"
+                                     WordWrap="{Binding WordWrap}" />
+            <Canvas x:Name="GhostOverlay"
+                    IsHitTestVisible="False"
+                    ClipToBounds="True">
+                <Border x:Name="GhostToolbar"
+                        IsVisible="False"
+                        IsHitTestVisible="True"
+                        Background="#2D2D2D"
+                        BorderBrush="#454545"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="8,4"
+                        Cursor="Hand"
+                        ZIndex="2">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Accept"
+                                   FontSize="11"
+                                   Foreground="#CCCCCC"
+                                   VerticalAlignment="Center" />
+                        <Border BorderBrush="#6A6A6A"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Padding="5,1"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="Tab"
+                                       FontSize="10"
+                                       Foreground="#E0E0E0" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+                <TextBlock x:Name="GhostPreviewText"
+                           IsVisible="False"
+                           IsHitTestVisible="False"
+                           FontStyle="Italic"
+                           Foreground="#A0A0A0"
+                           Opacity="0.9"
+                           ZIndex="1" />
+            </Canvas>
+        </Grid>
 
         <GridSplitter x:Name="VerticalSplitter"
                       Grid.Row="0"

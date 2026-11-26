@@ -8,6 +8,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AvaloniaEdit;
@@ -63,10 +64,10 @@ public partial class DocumentEditor : UserControl
     private int _lspCompletionVersion;
     private readonly List<LspContentChange> _pendingLspChanges = [];
     private bool _lspNeedsFullSync;
-    private readonly InlineGhostRenderer _ghostRenderer = new();
     private InlineGhostSuggestion? _ghostSuggestion;
     private int _ghostDocumentVersion = -1;
     private bool _ghostDisabledAcceptsTab;
+    private bool _ghostScrollHooked;
     private CancellationTokenSource? _aiCompletionCts;
     private int _aiCompletionVersion;
     private OpenAiChatClient? _aiClient;
@@ -398,11 +399,12 @@ public partial class DocumentEditor : UserControl
         _editor.TextArea.TextEntered += OnTextEntered;
         // Tunnel so we see Tab before TextArea.OnKeyDown (which always inserts indent when AcceptsTab).
         _editor.TextArea.AddHandler(InputElement.KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
-        _editor.TextArea.TextView.PointerPressed += OnGhostPointerPressed;
         _editor.PointerWheelChanged += OnPointerWheelChanged;
         _editor.PointerMoved += OnEditorPointerMoved;
         _editor.PointerExited += OnEditorPointerExited;
         _editor.DocumentChanged += OnEditorDocumentChanged;
+        if (GhostToolbar != null)
+            GhostToolbar.PointerPressed += OnGhostToolbarPointerPressed;
 
         EditorThemeService.ThemeChanged += OnThemeChanged;
 
@@ -1878,22 +1880,38 @@ public partial class DocumentEditor : UserControl
 
     private void InstallGhostText()
     {
-        if (_editor == null)
-            return;
-        if (!_editor.TextArea.TextView.BackgroundRenderers.Contains(_ghostRenderer))
-            _editor.TextArea.TextView.BackgroundRenderers.Add(_ghostRenderer);
+        HideGhostOverlay();
+        HookGhostScroll();
     }
 
     private void UninstallGhostText()
     {
-        if (_editor != null)
-            _editor.TextArea.TextView.BackgroundRenderers.Remove(_ghostRenderer);
+        UnhookGhostScroll();
         ClearGhostSuggestion();
     }
 
+    private void HookGhostScroll()
+    {
+        if (_editor == null || _ghostScrollHooked)
+            return;
+        _editor.TextArea.TextView.ScrollOffsetChanged += OnGhostScrollOffsetChanged;
+        _ghostScrollHooked = true;
+    }
+
+    private void UnhookGhostScroll()
+    {
+        if (_editor == null || !_ghostScrollHooked)
+            return;
+        _editor.TextArea.TextView.ScrollOffsetChanged -= OnGhostScrollOffsetChanged;
+        _ghostScrollHooked = false;
+    }
+
+    private void OnGhostScrollOffsetChanged(object? sender, EventArgs e) =>
+        UpdateGhostOverlayPosition();
+
     private void ClearGhostSuggestion(bool clearStatus = false, bool restoreAcceptsTabImmediately = true)
     {
-        if (_ghostSuggestion == null && _ghostRenderer.Suggestion == null)
+        if (_ghostSuggestion == null && GhostToolbar?.IsVisible != true && GhostPreviewText?.IsVisible != true)
         {
             if (restoreAcceptsTabImmediately)
                 RestoreAcceptsTabAfterGhost();
@@ -1901,11 +1919,10 @@ public partial class DocumentEditor : UserControl
         }
 
         _ghostSuggestion = null;
-        _ghostRenderer.Suggestion = null;
         _ghostDocumentVersion = -1;
+        HideGhostOverlay();
         if (restoreAcceptsTabImmediately)
             RestoreAcceptsTabAfterGhost();
-        _editor?.TextArea.TextView.InvalidateLayer(KnownLayer.Caret);
         if (clearStatus)
             SetEditorStatus("");
     }
@@ -1914,7 +1931,6 @@ public partial class DocumentEditor : UserControl
     {
         _ghostSuggestion = suggestion;
         _ghostDocumentVersion = docVersion;
-        _ghostRenderer.Suggestion = suggestion;
         // TextArea.OnKeyDown ignores Handled and always indents when AcceptsTab is true.
         if (_editor != null && !_ghostDisabledAcceptsTab)
         {
@@ -1922,23 +1938,98 @@ public partial class DocumentEditor : UserControl
             _ghostDisabledAcceptsTab = true;
         }
 
-        _editor?.TextArea.TextView.InvalidateLayer(KnownLayer.Caret);
-        SetEditorStatus($"AI suggestion · Tab accepts · Esc dismisses");
+        if (GhostPreviewText != null)
+        {
+            GhostPreviewText.Text = suggestion.DisplayLine;
+            GhostPreviewText.FontSize = _editor?.FontSize ?? 13;
+            GhostPreviewText.FontFamily = _editor?.FontFamily ?? new FontFamily("Cascadia Code, Consolas, monospace");
+            GhostPreviewText.IsVisible = true;
+        }
+
+        if (GhostToolbar != null)
+            GhostToolbar.IsVisible = true;
+
+        if (GhostOverlay != null)
+            GhostOverlay.IsHitTestVisible = true;
+
+        // Layout may not have measured the toolbar yet on this frame.
+        UpdateGhostOverlayPosition();
+        Dispatcher.UIThread.Post(UpdateGhostOverlayPosition, DispatcherPriority.Loaded);
+        SetEditorStatus("AI suggestion · Tab accepts · Esc dismisses");
         AiDebugLog.Shared.Write("ghost",
             $"show offset={suggestion.Offset} len={suggestion.Text.Length} preview={AiDebugLog.SummarizeBody(suggestion.DisplayLine)}");
     }
 
-    private void OnGhostPointerPressed(object? sender, PointerPressedEventArgs e)
+    private void HideGhostOverlay()
     {
-        if (_ghostSuggestion is not { IsVisible: true } || _editor == null)
-            return;
-        if (!e.GetCurrentPoint(_editor.TextArea.TextView).Properties.IsLeftButtonPressed)
+        if (GhostToolbar != null)
+            GhostToolbar.IsVisible = false;
+        if (GhostPreviewText != null)
+        {
+            GhostPreviewText.IsVisible = false;
+            GhostPreviewText.Text = "";
+        }
+        if (GhostOverlay != null)
+            GhostOverlay.IsHitTestVisible = false;
+    }
+
+    private void UpdateGhostOverlayPosition()
+    {
+        if (_editor?.Document == null ||
+            _ghostSuggestion is not { IsVisible: true } ghost ||
+            GhostOverlay == null ||
+            GhostPreviewText == null ||
+            GhostToolbar == null)
             return;
 
-        var point = e.GetPosition(_editor.TextArea.TextView);
-        if (!_ghostRenderer.HitTestAccept(point))
+        var document = _editor.Document;
+        if (ghost.Offset < 0 || ghost.Offset > document.TextLength)
             return;
 
+        TextLocation location;
+        try
+        {
+            location = document.GetLocation(ghost.Offset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return;
+        }
+
+        var textView = _editor.TextArea.TextView;
+        // Document visual coords → TextView viewport → overlay canvas.
+        var textTopDoc = textView.GetVisualPosition(new TextViewPosition(location), VisualYPosition.TextTop);
+        var lineTopDoc = textView.GetVisualPosition(new TextViewPosition(location), VisualYPosition.LineTop);
+        var textTopView = textTopDoc - textView.ScrollOffset;
+        var lineTopView = lineTopDoc - textView.ScrollOffset;
+
+        var textInOverlay = textView.TranslatePoint(textTopView, GhostOverlay);
+        var lineInOverlay = textView.TranslatePoint(lineTopView, GhostOverlay);
+        if (textInOverlay == null || lineInOverlay == null)
+            return;
+
+        Canvas.SetLeft(GhostPreviewText, textInOverlay.Value.X);
+        Canvas.SetTop(GhostPreviewText, textInOverlay.Value.Y);
+
+        // Measure toolbar after it is visible so DesiredSize is valid.
+        GhostToolbar.Measure(Size.Infinity);
+        var barSize = GhostToolbar.DesiredSize;
+        var barX = lineInOverlay.Value.X;
+        var barY = lineInOverlay.Value.Y - barSize.Height - 6;
+        if (barY < 2)
+            barY = lineInOverlay.Value.Y + textView.DefaultLineHeight + 2;
+        var maxX = Math.Max(4, GhostOverlay.Bounds.Width - barSize.Width - 4);
+        if (barX > maxX)
+            barX = maxX;
+
+        Canvas.SetLeft(GhostToolbar, Math.Max(4, barX));
+        Canvas.SetTop(GhostToolbar, barY);
+    }
+
+    private void OnGhostToolbarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(GhostToolbar).Properties.IsLeftButtonPressed)
+            return;
         if (TryAcceptGhostSuggestion())
             e.Handled = true;
     }
