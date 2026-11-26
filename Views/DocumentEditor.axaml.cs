@@ -2050,7 +2050,9 @@ public partial class DocumentEditor : UserControl
                 _ghostDocumentVersion = docVersion;
                 _ghostGenerator.Suggestion = suggestion;
                 _editor.TextArea.TextView.Redraw();
-                SetEditorStatus("AI suggestion — Tab to accept, Esc to dismiss");
+                SetEditorStatus(result.UsedAnonymousFallback
+                    ? "AI suggestion (anonymous — fix API key in Preferences → AI) — Tab to accept"
+                    : "AI suggestion — Tab to accept, Esc to dismiss");
             });
         }
         catch (OperationCanceledException)

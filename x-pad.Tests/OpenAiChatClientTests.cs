@@ -85,7 +85,9 @@ public class OpenAiChatClientTests
     [Fact]
     public async Task CompleteAsync_KiloFree401_RetriesAnonymous()
     {
+        // api.kilo.ai 401 → ai-gateway 401 → anonymous OK on api.kilo.ai
         var handler = new SequenceHandler(
+            (HttpStatusCode.Unauthorized, """{"error":{"code":"INVALID_TOKEN","message":"bad"}}"""),
             (HttpStatusCode.Unauthorized, """{"error":{"code":"INVALID_TOKEN","message":"bad"}}"""),
             (HttpStatusCode.OK, """{"choices":[{"message":{"content":"ok;"}}]}"""));
         using var http = new HttpClient(handler);
@@ -100,7 +102,8 @@ public class OpenAiChatClientTests
 
         Assert.True(result.Ok);
         Assert.Equal("ok;", result.Text);
-        Assert.Equal(2, handler.CallCount);
+        Assert.True(result.UsedAnonymousFallback);
+        Assert.Equal(3, handler.CallCount);
         Assert.Null(handler.LastRequest!.Headers.Authorization);
     }
 
@@ -187,10 +190,93 @@ public class OpenAiChatClientTests
             "m",
             null,
             "sys",
-            "user"), CancellationToken.None);
+            "user",
+            MaxTokens: OpenAiChatClient.MaxCompletionTokens), CancellationToken.None);
 
         Assert.False(result.Ok);
         Assert.Contains("reasoning", result.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_NullContentWithReasoning_IsRetryable()
+    {
+        var handler = new SequenceHandler(
+            (HttpStatusCode.OK,
+                """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":null,"reasoning":"think"}}]}"""),
+            (HttpStatusCode.OK,
+                """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":" --port 8080"}}]}"""));
+        using var http = new HttpClient(handler);
+        using var client = new OpenAiChatClient(http);
+
+        var result = await client.CompleteAsync(new AiCompletionRequest(
+            "https://api.kilo.ai/api/gateway",
+            "kilo-auto/free",
+            ApiKey: "",
+            SystemPrompt: "sys",
+            UserMessage: "user",
+            MaxTokens: 256), CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.Equal("--port 8080", result.Text);
+        Assert.Equal(2, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_RemembersRejectedKey_ForFreeModel()
+    {
+        // Call 1: api.kilo 401 → ai-gateway 401 → anonymous OK
+        // Call 2: skip rejected key → anonymous OK (no auth attempts)
+        var handler = new SequenceHandler(
+            (HttpStatusCode.Unauthorized, """{"error":{"code":"INVALID_TOKEN"}}"""),
+            (HttpStatusCode.Unauthorized, """{"error":{"code":"INVALID_TOKEN"}}"""),
+            (HttpStatusCode.OK, """{"choices":[{"message":{"content":"first;"}}]}"""),
+            (HttpStatusCode.OK, """{"choices":[{"message":{"content":"second;"}}]}"""));
+        using var http = new HttpClient(handler);
+        using var client = new OpenAiChatClient(http);
+
+        var req = new AiCompletionRequest(
+            "https://api.kilo.ai/api/gateway",
+            "kilo-auto/free",
+            ApiKey: "bad-token",
+            SystemPrompt: "sys",
+            UserMessage: "user");
+
+        var first = await client.CompleteAsync(req, CancellationToken.None);
+        Assert.True(first.Ok);
+        Assert.True(first.UsedAnonymousFallback);
+        Assert.Equal(3, handler.CallCount);
+
+        var second = await client.CompleteAsync(req, CancellationToken.None);
+        Assert.True(second.Ok);
+        Assert.Equal("second;", second.Text);
+        Assert.True(second.UsedAnonymousFallback);
+        // Skipped straight to anonymous — no re-auth on either host.
+        Assert.Equal(4, handler.CallCount);
+        Assert.Null(handler.LastRequest!.Headers.Authorization);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_AltKiloHost_AcceptsValidKeyAfterApiHost401()
+    {
+        var handler = new SequenceHandler(
+            (HttpStatusCode.Unauthorized, """{"error":{"code":"INVALID_TOKEN"}}"""),
+            (HttpStatusCode.OK, """{"choices":[{"message":{"content":"from-docs-host;"}}]}"""));
+        using var http = new HttpClient(handler);
+        using var client = new OpenAiChatClient(http);
+
+        var result = await client.CompleteAsync(new AiCompletionRequest(
+            "https://api.kilo.ai/api/gateway",
+            "kilo-auto/free",
+            ApiKey: "gateway-jwt",
+            SystemPrompt: "sys",
+            UserMessage: "user"), CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.Equal("from-docs-host;", result.Text);
+        Assert.False(result.UsedAnonymousFallback);
+        Assert.Equal(2, handler.CallCount);
+        Assert.Equal("Bearer gateway-jwt", handler.LastRequest!.Headers.Authorization?.ToString());
+        Assert.Contains("ai-gateway.kilo.ai", handler.LastRequest.RequestUri!.Host, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

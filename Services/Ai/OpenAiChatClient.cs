@@ -23,12 +23,14 @@ public sealed record AiCompletionResult(
     string Text,
     string? Error,
     bool RateLimited,
-    bool ReasoningOnly = false);
+    bool ReasoningOnly = false,
+    bool UsedAnonymousFallback = false);
 
 /// <summary>Minimal OpenAI-compatible <c>POST /chat/completions</c> client.</summary>
 public sealed class OpenAiChatClient : IDisposable
 {
     public const string KiloGatewayHost = "api.kilo.ai";
+    public const string KiloDocsGatewayBaseUrl = "https://ai-gateway.kilo.ai/api/v1";
     public const string KiloFreeModel = "kilo-auto/free";
     public const int MaxCompletionTokens = 1536;
     public const int ReasoningRetryTokens = 1024;
@@ -36,6 +38,7 @@ public sealed class OpenAiChatClient : IDisposable
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private readonly AiDebugLog _log;
+    private string? _rejectedApiKey;
 
     public OpenAiChatClient(HttpClient? http = null, AiDebugLog? log = null)
     {
@@ -142,22 +145,59 @@ public sealed class OpenAiChatClient : IDisposable
             return new AiCompletionResult(false, "", "AI model is empty.", false);
 
         var apiKey = NormalizeApiKey(request.ApiKey);
-        var activeKey = apiKey;
-        var result = await SendCompletionAsync(uri, request, activeKey, ct).ConfigureAwait(false);
         var usedAnonymousFallback = false;
+        var activeKey = apiKey;
+
+        // After INVALID_TOKEN, skip re-sending the same rejected key on free models.
+        if (apiKey.Length > 0 &&
+            string.Equals(apiKey, _rejectedApiKey, StringComparison.Ordinal) &&
+            IsKiloGateway(uri) &&
+            LooksLikeFreeModel(request.Model))
+        {
+            activeKey = "";
+            usedAnonymousFallback = true;
+            _log.Write("auth", "skipping previously rejected API key for free model (anonymous)");
+        }
+
+        var result = await SendCompletionAsync(uri, request, activeKey, ct).ConfigureAwait(false);
+
+        if (result.Ok && activeKey.Length > 0)
+            _rejectedApiKey = null;
+
+        // Some Profile keys work on the documented ai-gateway host but not api.kilo.ai.
+        if (!result.Ok &&
+            IsUnauthorized(result) &&
+            apiKey.Length > 0 &&
+            uri.Host.Equals(KiloGatewayHost, StringComparison.OrdinalIgnoreCase))
+        {
+            var altUri = BuildChatCompletionsUri(KiloDocsGatewayBaseUrl);
+            if (altUri != null)
+            {
+                _log.Write("auth", $"401 on {uri.Host} — retrying {altUri.Host} with same API key");
+                var alt = await SendCompletionAsync(altUri, request, apiKey, ct).ConfigureAwait(false);
+                if (alt.Ok)
+                {
+                    _rejectedApiKey = null;
+                    return alt;
+                }
+
+                if (!IsUnauthorized(alt))
+                    result = alt;
+            }
+        }
 
         // Kilo free tiers allow anonymous access. A pasted IDE/session token often
         // 401s even when the model itself is free — retry once without Authorization.
         if (!result.Ok &&
-            result.Error?.Contains("(401)", StringComparison.Ordinal) == true &&
+            IsUnauthorized(result) &&
             apiKey.Length > 0 &&
             IsKiloGateway(uri) &&
             LooksLikeFreeModel(request.Model))
         {
+            _rejectedApiKey = apiKey;
             _log.Write("auth", "401 with API key — retrying anonymous for free model (use Gateway key from app.kilo.ai Profile, not an IDE session token)");
             var anon = await SendCompletionAsync(uri, request, apiKey: "", ct).ConfigureAwait(false);
-            // Prefer the anonymous outcome unless it also failed auth.
-            if (anon.Ok || anon.Error?.Contains("(401)", StringComparison.Ordinal) != true)
+            if (anon.Ok || !IsUnauthorized(anon))
             {
                 result = anon;
                 activeKey = "";
@@ -165,18 +205,19 @@ public sealed class OpenAiChatClient : IDisposable
             }
         }
 
-        // Reasoning models (e.g. beam-free behind kilo-auto/free) often spend a small
-        // max_tokens budget entirely on reasoning. Retry once with a larger budget.
-        if (result.ReasoningOnly && request.MaxTokens < ReasoningRetryTokens)
+        // Reasoning models often emit content:null / empty with a reasoning blob.
+        // Retry once with a larger budget when we still have headroom.
+        if (result.ReasoningOnly && request.MaxTokens < MaxCompletionTokens)
         {
-            _log.Write("model", $"reasoning-only with max_tokens={request.MaxTokens} — retrying with {ReasoningRetryTokens}");
-            var boosted = request with { MaxTokens = ReasoningRetryTokens };
+            var boost = Math.Min(MaxCompletionTokens, Math.Max(ReasoningRetryTokens, request.MaxTokens * 2));
+            _log.Write("model", $"reasoning-only / empty content with max_tokens={request.MaxTokens} — retrying with {boost}");
+            var boosted = request with { MaxTokens = boost };
             var retry = await SendCompletionAsync(uri, boosted, activeKey, ct).ConfigureAwait(false);
             if (retry.Ok || !retry.ReasoningOnly)
                 result = retry;
         }
 
-        if (!result.Ok && result.Error?.Contains("(401)", StringComparison.Ordinal) == true)
+        if (!result.Ok && IsUnauthorized(result))
         {
             return result with
             {
@@ -191,18 +232,22 @@ public sealed class OpenAiChatClient : IDisposable
         {
             return result with
             {
-                Error = "AI used its token budget on reasoning with no insertion text. Try again, " +
-                        "or raise max tokens / use a non-reasoning model."
+                Error = "AI returned reasoning with no insertion text. Try again.",
+                UsedAnonymousFallback = usedAnonymousFallback
             };
         }
 
         if (result.Ok && usedAnonymousFallback)
         {
             _log.Write("auth", "completed via anonymous fallback after INVALID_TOKEN — replace API key with Gateway key from app.kilo.ai Profile");
+            return result with { UsedAnonymousFallback = true };
         }
 
         return result;
     }
+
+    private static bool IsUnauthorized(AiCompletionResult result) =>
+        result.Error?.Contains("(401)", StringComparison.Ordinal) == true;
 
     private async Task<AiCompletionResult> SendCompletionAsync(
         Uri uri,
@@ -271,16 +316,13 @@ public sealed class OpenAiChatClient : IDisposable
             var cleaned = InlineCompletionPrompt.CleanResponse(content);
             if (cleaned.Length == 0)
             {
-                var finish = TryReadFinishReason(doc.RootElement);
-                var hasReasoning = HasReasoning(doc.RootElement);
-                if (hasReasoning &&
-                    (string.Equals(finish, "length", StringComparison.OrdinalIgnoreCase) ||
-                     string.IsNullOrEmpty(finish)))
+                // Free routers (ernie/beam) often return content:null with a long reasoning blob.
+                if (HasReasoning(doc.RootElement))
                 {
                     return new AiCompletionResult(
                         false,
                         "",
-                        "AI used its token budget on reasoning with no insertion text. Try again.",
+                        "AI returned reasoning with no insertion text. Try again.",
                         false,
                         ReasoningOnly: true);
                 }
