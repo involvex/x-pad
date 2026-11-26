@@ -4,6 +4,12 @@
 
 
 
+
+## 0.5.10 - 2026-11-26
+
+- feat(lsp): rename symbol via prepareRename and WorkspaceEdit
+- fix(terminal): clear Process mid-flight to avoid MaxScrollback NRE
+- feat(lsp): resolve code actions that omit edit until follow-up
 ## 0.5.9 - 2026-11-26
 
 - fix(ai): show ghost via Avalonia overlay instead of Caret layer
