@@ -3,6 +3,19 @@
 
 
 
+
+## 0.5.9 - 2026-11-26
+
+- fix(ai): show ghost via Avalonia overlay instead of Caret layer
+- feat(ai): VS Code-style Accept bar and italic ghost text
+- fix(ai): draw ghost preview on caret layer with status preview
+- fix(ai): render ghost text and make Tab accept it
+- fix(ai): harden Kilo free auth and null-content retries
+- fix(ai): keep kilo-auto/free and raise reasoning token budget
+- fix(ai): use kilo-auto/small and add AI debug log panel
+- fix(ai): tolerate invalid Kilo keys on free models
+- fix(ai): clear stuck suggesting status and raise token budget
+- feat(ai): add OpenAI-compatible ghost-text completions
 ## 0.5.8 - 2026-11-25
 
 - fix(startup): init status timer before workspace restore
