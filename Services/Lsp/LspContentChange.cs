@@ -41,6 +41,34 @@ public static class LspCapabilities
                resolveValue.TryGetValue(out bool resolveEnabled) &&
                resolveEnabled;
     }
+
+    /// <summary>True when <c>renameProvider</c> is true or an options object.</summary>
+    public static bool SupportsRename(JsonNode? initializeResult)
+    {
+        var provider = initializeResult?["capabilities"]?["renameProvider"];
+        if (provider is null)
+            return false;
+
+        if (provider is JsonValue value && value.TryGetValue(out bool enabled))
+            return enabled;
+
+        return provider is JsonObject;
+    }
+
+    /// <summary>
+    /// True when <c>renameProvider</c> is an options object with <c>prepareProvider: true</c>.
+    /// </summary>
+    public static bool SupportsPrepareRename(JsonNode? initializeResult)
+    {
+        var provider = initializeResult?["capabilities"]?["renameProvider"];
+        if (provider is not JsonObject options)
+            return false;
+
+        var prepare = options["prepareProvider"];
+        return prepare is JsonValue prepareValue &&
+               prepareValue.TryGetValue(out bool prepareEnabled) &&
+               prepareEnabled;
+    }
 }
 
 /// <summary>One incremental <c>textDocument/didChange</c> content change (LSP positions are 0-based).</summary>

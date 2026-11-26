@@ -205,6 +205,38 @@ public partial class DocumentEditor : UserControl
         return true;
     }
 
+    /// <summary>Word under / before the caret (letters, digits, underscore).</summary>
+    public string GetWordAtCaret()
+    {
+        var segment = GetWordSegmentAtCaret();
+        if (segment == null || _editor?.Document == null)
+            return GetWordBeforeCaret();
+        return _editor.Document.GetText(segment.Value.Start, segment.Value.Length);
+    }
+
+    /// <summary>Text for a 0-based LSP range in the current document, or null.</summary>
+    public string? GetTextInLspRange(int startLine, int startCharacter, int endLine, int endCharacter)
+    {
+        if (_editor?.Document == null)
+            return null;
+
+        try
+        {
+            var document = _editor.Document;
+            var startOffset = document.GetOffset(startLine + 1, startCharacter + 1);
+            var endOffset = document.GetOffset(endLine + 1, endCharacter + 1);
+            if (endOffset < startOffset)
+                (startOffset, endOffset) = (endOffset, startOffset);
+            startOffset = Math.Clamp(startOffset, 0, document.TextLength);
+            endOffset = Math.Clamp(endOffset, 0, document.TextLength);
+            return document.GetText(startOffset, endOffset - startOffset);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public void GoToMatch(int line, int column, int length)
     {
         if (_editor?.Document == null)

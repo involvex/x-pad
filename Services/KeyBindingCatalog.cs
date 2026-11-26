@@ -44,6 +44,7 @@ public static class KeyBindingCatalog
         new("FindReferences", "Find references", "Shift+F12", "FindReferencesCommand"),
         new("ShowDocumentOutline", "Document outline", "Ctrl+Shift+OemPeriod", "ShowDocumentOutlineCommand"),
         new("ShowCodeActions", "Code actions", "Ctrl+OemPeriod", "ShowCodeActionsCommand"),
+        new("RenameSymbol", "Rename symbol", "Ctrl+Shift+R", "RenameSymbolCommand"),
         new("InsertDateTime", "Insert date/time", "F5", "InsertDateTimeCommand"),
         new("ToggleWordWrap", "Toggle word wrap", "Alt+Z", "ToggleWordWrapCommand"),
         new("OpenPreferences", "Preferences", "Ctrl+OemComma", "OpenPreferencesCommand"),
