@@ -63,6 +63,52 @@ public sealed class OpenAiChatClient : IDisposable
         return baseUrl.Trim().TrimEnd('/');
     }
 
+    /// <summary>
+    /// Strip whitespace, surrounding quotes, and a duplicated <c>Bearer </c> prefix
+    /// so pasted dashboard keys and <c>Bearer …</c> clips both work.
+    /// </summary>
+    public static string NormalizeApiKey(string? apiKey)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return "";
+
+        var key = apiKey.Trim();
+        if (key.Length >= 2)
+        {
+            if ((key[0] == '"' && key[^1] == '"') || (key[0] == '\'' && key[^1] == '\''))
+                key = key[1..^1].Trim();
+        }
+
+        if (key.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            key = key["Bearer ".Length..].Trim();
+
+        // Soft line-wrap / zero-width junk from paste into the password box.
+        if (key.IndexOfAny(['\r', '\n', '\t', ' ', '\u200b']) >= 0)
+        {
+            var buffer = new char[key.Length];
+            var n = 0;
+            foreach (var c in key)
+            {
+                if (char.IsWhiteSpace(c) || c == '\u200b')
+                    continue;
+                buffer[n++] = c;
+            }
+            key = new string(buffer, 0, n);
+        }
+
+        return key;
+    }
+
+    public static bool LooksLikeFreeModel(string? model)
+    {
+        if (string.IsNullOrWhiteSpace(model))
+            return false;
+        var m = model.Trim();
+        return m.Contains(":free", StringComparison.OrdinalIgnoreCase) ||
+               m.EndsWith("/free", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(m, "kilo-auto/free", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static Uri? BuildChatCompletionsUri(string? baseUrl)
     {
         var normalized = NormalizeBaseUrl(baseUrl);
@@ -83,9 +129,45 @@ public sealed class OpenAiChatClient : IDisposable
         if (string.IsNullOrWhiteSpace(request.Model))
             return new AiCompletionResult(false, "", "AI model is empty.", false);
 
+        var apiKey = NormalizeApiKey(request.ApiKey);
+        var result = await SendCompletionAsync(uri, request, apiKey, ct).ConfigureAwait(false);
+
+        // Kilo free tiers allow anonymous access. A pasted IDE/session token often
+        // 401s even when the model itself is free — retry once without Authorization.
+        if (!result.Ok &&
+            result.Error?.Contains("(401)", StringComparison.Ordinal) == true &&
+            apiKey.Length > 0 &&
+            IsKiloGateway(uri) &&
+            LooksLikeFreeModel(request.Model))
+        {
+            var anon = await SendCompletionAsync(uri, request, apiKey: "", ct).ConfigureAwait(false);
+            if (anon.Ok)
+                return anon;
+        }
+
+        if (!result.Ok && result.Error?.Contains("(401)", StringComparison.Ordinal) == true)
+        {
+            return result with
+            {
+                Error = IsKiloGateway(uri)
+                    ? "Kilo rejected the API key (401). For kilo-auto/free leave API key empty, " +
+                      "or paste the Gateway key from app.kilo.ai → Profile (not an extension session token)."
+                    : "AI auth failed (401). Check the API key, or leave it empty if the provider allows anonymous access."
+            };
+        }
+
+        return result;
+    }
+
+    private async Task<AiCompletionResult> SendCompletionAsync(
+        Uri uri,
+        AiCompletionRequest request,
+        string apiKey,
+        CancellationToken ct)
+    {
         using var msg = new HttpRequestMessage(HttpMethod.Post, uri);
-        if (!string.IsNullOrWhiteSpace(request.ApiKey))
-            msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", request.ApiKey.Trim());
+        if (apiKey.Length > 0)
+            msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
         if (IsKiloGateway(uri))
             msg.Headers.TryAddWithoutValidation("x-kilocode-mode", "code");

@@ -9,6 +9,19 @@ namespace x_pad.Tests;
 
 public class OpenAiChatClientTests
 {
+    [Theory]
+    [InlineData(null, "")]
+    [InlineData("  ", "")]
+    [InlineData("secret", "secret")]
+    [InlineData(" Bearer secret ", "secret")]
+    [InlineData("\"secret\"", "secret")]
+    [InlineData("'Bearer abc.def'", "abc.def")]
+    [InlineData("sec\r\nret", "secret")]
+    public void NormalizeApiKey_StripsBearerQuotesAndWhitespace(string? input, string expected)
+    {
+        Assert.Equal(expected, OpenAiChatClient.NormalizeApiKey(input));
+    }
+
     [Fact]
     public void BuildChatCompletionsUri_AppendsPath()
     {
@@ -59,7 +72,7 @@ public class OpenAiChatClientTests
         var result = await client.CompleteAsync(new AiCompletionRequest(
             "https://api.kilo.ai/api/gateway",
             "kilo-auto/free",
-            ApiKey: "secret-key",
+            ApiKey: "Bearer secret-key",
             SystemPrompt: "sys",
             UserMessage: "user"), CancellationToken.None);
 
@@ -67,6 +80,28 @@ public class OpenAiChatClientTests
         Assert.Equal("Bearer secret-key", handler.LastRequest!.Headers.Authorization?.ToString());
         Assert.True(handler.LastRequest.Headers.TryGetValues("x-kilocode-mode", out var modes));
         Assert.Equal("code", Assert.Single(modes));
+    }
+
+    [Fact]
+    public async Task CompleteAsync_KiloFree401_RetriesAnonymous()
+    {
+        var handler = new SequenceHandler(
+            (HttpStatusCode.Unauthorized, """{"error":{"code":"INVALID_TOKEN","message":"bad"}}"""),
+            (HttpStatusCode.OK, """{"choices":[{"message":{"content":"ok;"}}]}"""));
+        using var http = new HttpClient(handler);
+        using var client = new OpenAiChatClient(http);
+
+        var result = await client.CompleteAsync(new AiCompletionRequest(
+            "https://api.kilo.ai/api/gateway",
+            "kilo-auto/free",
+            ApiKey: "session-token",
+            SystemPrompt: "sys",
+            UserMessage: "user"), CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.Equal("ok;", result.Text);
+        Assert.Equal(2, handler.CallCount);
+        Assert.Null(handler.LastRequest!.Headers.Authorization);
     }
 
     [Fact]
@@ -169,6 +204,31 @@ public class OpenAiChatClientTests
             {
                 Content = new StringContent(_body, Encoding.UTF8, "application/json")
             };
+        }
+    }
+
+    private sealed class SequenceHandler : HttpMessageHandler
+    {
+        private readonly (HttpStatusCode Status, string Body)[] _responses;
+        private int _index;
+
+        public SequenceHandler(params (HttpStatusCode Status, string Body)[] responses) =>
+            _responses = responses;
+
+        public int CallCount => _index;
+        public HttpRequestMessage? LastRequest { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            var (status, body) = _responses[Math.Min(_index, _responses.Length - 1)];
+            _index++;
+            return Task.FromResult(new HttpResponseMessage(status)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            });
         }
     }
 

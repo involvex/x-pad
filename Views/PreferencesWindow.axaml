@@ -162,7 +162,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Kilo Free"
                                     Command="{Binding ApplyKiloFreePresetCommand}"
-                                    ToolTip.Tip="https://api.kilo.ai/api/gateway · kilo-auto/free (manual; ~200 req/h)" />
+                                    ToolTip.Tip="https://api.kilo.ai/api/gateway · kilo-auto/free · clears API key (anonymous free; ~200 req/h)" />
                             <Button Content="Ollama"
                                     Command="{Binding ApplyOllamaPresetCommand}"
                                     ToolTip.Tip="http://127.0.0.1:11434/v1 — local server must already be running" />
@@ -200,9 +200,10 @@
                             <TextBox Grid.Row="1" Grid.Column="1"
                                      Text="{Binding AiApiKey}"
                                      PasswordChar="•"
-                                     PlaceholderText="Optional — leave empty for anonymous free endpoints"
+                                     PlaceholderText="Leave empty for Kilo Free; else Gateway key from app.kilo.ai Profile"
                                      FontFamily="Cascadia Code, Consolas, monospace"
-                                     FontSize="12" />
+                                     FontSize="12"
+                                     ToolTip.Tip="Do not paste a Kilo Code extension/session token. For kilo-auto/free leave empty. Paid models need the Gateway API key from app.kilo.ai → Profile." />
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Model" VerticalAlignment="Center" />
                             <TextBox Grid.Row="2" Grid.Column="1"

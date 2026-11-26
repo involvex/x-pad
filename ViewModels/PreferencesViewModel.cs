@@ -252,6 +252,8 @@ public partial class PreferencesViewModel : ViewModelBase
         AiCompletionEnabled = true;
         AiBaseUrl = KiloFreeBaseUrl;
         AiModel = KiloFreeModel;
+        // Free tier is anonymous; a pasted IDE/session token 401s on the gateway.
+        AiApiKey = "";
         AiAutomatic = false;
     }
 
