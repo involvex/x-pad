@@ -398,6 +398,7 @@ public partial class DocumentEditor : UserControl
         _editor.TextArea.TextEntered += OnTextEntered;
         // Tunnel so we see Tab before TextArea.OnKeyDown (which always inserts indent when AcceptsTab).
         _editor.TextArea.AddHandler(InputElement.KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
+        _editor.TextArea.TextView.PointerPressed += OnGhostPointerPressed;
         _editor.PointerWheelChanged += OnPointerWheelChanged;
         _editor.PointerMoved += OnEditorPointerMoved;
         _editor.PointerExited += OnEditorPointerExited;
@@ -1922,11 +1923,24 @@ public partial class DocumentEditor : UserControl
         }
 
         _editor?.TextArea.TextView.InvalidateLayer(KnownLayer.Caret);
-        var preview = suggestion.StatusPreview();
-        var status = $"AI ready · Tab ⇥ {preview} · Esc dismiss";
-        SetEditorStatus(status);
+        SetEditorStatus($"AI suggestion · Tab accepts · Esc dismisses");
         AiDebugLog.Shared.Write("ghost",
             $"show offset={suggestion.Offset} len={suggestion.Text.Length} preview={AiDebugLog.SummarizeBody(suggestion.DisplayLine)}");
+    }
+
+    private void OnGhostPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_ghostSuggestion is not { IsVisible: true } || _editor == null)
+            return;
+        if (!e.GetCurrentPoint(_editor.TextArea.TextView).Properties.IsLeftButtonPressed)
+            return;
+
+        var point = e.GetPosition(_editor.TextArea.TextView);
+        if (!_ghostRenderer.HitTestAccept(point))
+            return;
+
+        if (TryAcceptGhostSuggestion())
+            e.Handled = true;
     }
 
     private void RestoreAcceptsTabAfterGhost()
@@ -2094,11 +2108,7 @@ public partial class DocumentEditor : UserControl
 
                 ShowGhostSuggestion(suggestion, docVersion);
                 if (result.UsedAnonymousFallback)
-                {
-                    // Keep the Tab preview first; append auth hint after a short delay via status.
-                    SetEditorStatus(
-                        $"AI ready · Tab ⇥ {suggestion.StatusPreview()} · Esc · (anonymous — fix API key)");
-                }
+                    SetEditorStatus("AI suggestion (anonymous — fix API key) · Tab / click Accept");
             });
         }
         catch (OperationCanceledException)

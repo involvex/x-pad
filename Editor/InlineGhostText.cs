@@ -81,24 +81,38 @@ public sealed class InlineGhostSuggestion
 }
 
 /// <summary>
-/// Draws ghost preview at the suggestion offset on the caret layer (above document text).
-/// More reliable than <see cref="VisualLineElementGenerator"/> for zero-length inserts.
+/// VS Code–style inline completion: italic dim ghost text plus a floating
+/// Accept / Tab hint bar above the caret.
 /// </summary>
 public sealed class InlineGhostRenderer : IBackgroundRenderer
 {
+    // Match VS Code dark inline-suggest chrome.
+    private static readonly IBrush ToolbarFill = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x2D));
+    private static readonly IPen ToolbarBorder = new Pen(new SolidColorBrush(Color.FromRgb(0x45, 0x45, 0x45)), 1);
+    private static readonly IBrush ToolbarFg = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+    private static readonly IBrush KeycapFg = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
+    private static readonly IPen KeycapBorder = new Pen(new SolidColorBrush(Color.FromRgb(0x6A, 0x6A, 0x6A)), 1);
     private static readonly IBrush GhostForeground =
-        new SolidColorBrush(Color.FromArgb(0xE0, 0x7E, 0xC8, 0xFF));
-    private static readonly IBrush GhostPill =
-        new SolidColorBrush(Color.FromArgb(0x55, 0x3A, 0x6E, 0xA8));
-    private static readonly IPen GhostUnderline =
-        new Pen(new SolidColorBrush(Color.FromArgb(0xC0, 0x7E, 0xC8, 0xFF)), 1.25);
+        new SolidColorBrush(Color.FromArgb(0xB8, 0x9E, 0x9E, 0x9E));
+
+    private const double ToolbarPadX = 8;
+    private const double ToolbarPadY = 4;
+    private const double ToolbarGap = 6;
+    private const double KeycapPadX = 5;
+    private const double KeycapPadY = 1.5;
+    private const double ToolbarFontSize = 11;
+    private const double KeycapFontSize = 10;
 
     public InlineGhostSuggestion? Suggestion { get; set; }
+
+    /// <summary>Last painted Accept hit-target in TextView viewport coordinates (for click-to-accept).</summary>
+    public Rect AcceptHitBounds { get; private set; }
 
     public KnownLayer Layer => KnownLayer.Caret;
 
     public void Draw(TextView textView, DrawingContext drawingContext)
     {
+        AcceptHitBounds = default;
         var s = Suggestion;
         if (s is not { IsVisible: true } || !textView.VisualLinesValid)
             return;
@@ -129,16 +143,36 @@ public sealed class InlineGhostRenderer : IBackgroundRenderer
             return;
         }
 
-        var topLeft = textView.GetVisualPosition(
+        var textTop = textView.GetVisualPosition(
             new TextViewPosition(location),
             VisualYPosition.TextTop) - textView.ScrollOffset;
+        var lineTop = textView.GetVisualPosition(
+            new TextViewPosition(location),
+            VisualYPosition.LineTop) - textView.ScrollOffset;
 
-        var fontSize = textView.GetValue(TextBlock.FontSizeProperty);
-        if (fontSize <= 0)
-            fontSize = 13;
-        var fontFamily = textView.GetValue(TextBlock.FontFamilyProperty);
-        var typeface = new Typeface(fontFamily ?? FontFamily.Default);
+        var editorFontSize = textView.GetValue(TextBlock.FontSizeProperty);
+        if (editorFontSize <= 0)
+            editorFontSize = 13;
+        var fontFamily = textView.GetValue(TextBlock.FontFamilyProperty) ?? FontFamily.Default;
 
+        DrawGhostText(drawingContext, display, textTop, fontFamily, editorFontSize);
+        DrawToolbar(drawingContext, textView, lineTop, fontFamily);
+    }
+
+    /// <summary>True when <paramref name="viewportPoint"/> hits the Accept control.</summary>
+    public bool HitTestAccept(Point viewportPoint) =>
+        Suggestion is { IsVisible: true } &&
+        AcceptHitBounds.Width > 0 &&
+        AcceptHitBounds.Contains(viewportPoint);
+
+    private static void DrawGhostText(
+        DrawingContext drawingContext,
+        string display,
+        Point topLeft,
+        FontFamily fontFamily,
+        double fontSize)
+    {
+        var typeface = new Typeface(fontFamily, FontStyle.Italic, FontWeight.Normal);
         var formatted = new FormattedText(
             display,
             CultureInfo.CurrentUICulture,
@@ -146,16 +180,66 @@ public sealed class InlineGhostRenderer : IBackgroundRenderer
             typeface,
             fontSize,
             GhostForeground);
-
-        var height = Math.Max(formatted.Height, textView.DefaultLineHeight * 0.85);
-        var width = Math.Max(formatted.WidthIncludingTrailingWhitespace, fontSize * 0.4);
-        var pill = new Rect(topLeft.X - 2, topLeft.Y, width + 4, height);
-
-        drawingContext.DrawRectangle(GhostPill, null, pill, 3, 3);
         drawingContext.DrawText(formatted, topLeft);
-        drawingContext.DrawLine(
-            GhostUnderline,
-            new Point(pill.X, pill.Bottom - 0.5),
-            new Point(pill.Right, pill.Bottom - 0.5));
+    }
+
+    private void DrawToolbar(
+        DrawingContext drawingContext,
+        TextView textView,
+        Point lineTopLeft,
+        FontFamily fontFamily)
+    {
+        var uiFace = new Typeface(FontFamily.Default);
+        var acceptLabel = new FormattedText(
+            "Accept",
+            CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            uiFace,
+            ToolbarFontSize,
+            ToolbarFg);
+        var tabLabel = new FormattedText(
+            "Tab",
+            CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            uiFace,
+            KeycapFontSize,
+            KeycapFg);
+
+        var keycapW = tabLabel.Width + KeycapPadX * 2;
+        var keycapH = tabLabel.Height + KeycapPadY * 2;
+        var contentH = Math.Max(acceptLabel.Height, keycapH);
+        var contentW = acceptLabel.Width + 6 + keycapW;
+        var barW = contentW + ToolbarPadX * 2;
+        var barH = contentH + ToolbarPadY * 2;
+
+        // Prefer above the line; flip below when near the top of the view.
+        var barX = Math.Max(4, lineTopLeft.X);
+        var barY = lineTopLeft.Y - barH - ToolbarGap;
+        if (barY < 2)
+            barY = lineTopLeft.Y + textView.DefaultLineHeight + 2;
+
+        // Keep inside the viewport horizontally.
+        var maxX = Math.Max(4, textView.Bounds.Width - barW - 4);
+        if (barX > maxX)
+            barX = maxX;
+
+        var bar = new Rect(barX, barY, barW, barH);
+        drawingContext.DrawRectangle(ToolbarFill, ToolbarBorder, bar, 4, 4);
+
+        var acceptOrigin = new Point(bar.X + ToolbarPadX, bar.Y + (barH - acceptLabel.Height) / 2);
+        drawingContext.DrawText(acceptLabel, acceptOrigin);
+
+        var keycap = new Rect(
+            acceptOrigin.X + acceptLabel.Width + 6,
+            bar.Y + (barH - keycapH) / 2,
+            keycapW,
+            keycapH);
+        drawingContext.DrawRectangle(null, KeycapBorder, keycap, 3, 3);
+        drawingContext.DrawText(
+            tabLabel,
+            new Point(keycap.X + KeycapPadX, keycap.Y + KeycapPadY));
+
+        // Whole toolbar is the accept hit target (VS Code clicks Accept or the keycap).
+        AcceptHitBounds = bar;
     }
 }

@@ -218,7 +218,7 @@
                         <TextBlock Text="{Binding ShortcutConflict}"
                                    Foreground="#E81123"
                                    TextWrapping="Wrap" />
-                        <TextBlock Text="Default trigger is Ctrl+Alt+Space (also under Shortcuts). Tab accepts ghost text; Esc dismisses. Custom base URL works for OpenCode Zen/proxies and LM Studio (port 1234)."
+                        <TextBlock Text="Default trigger is Ctrl+Alt+Space (also under Shortcuts). Ghost text shows italic with an Accept · Tab bar; Esc dismisses. Custom base URL works for OpenCode Zen/proxies and LM Studio (port 1234)."
                                    Opacity="0.7"
                                    FontSize="11"
                                    TextWrapping="Wrap" />
