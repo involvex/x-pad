@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -19,6 +20,7 @@ public partial class TerminalPanel : UserControl
     private string? _cwdHint;
     private EventHandler? _layoutHandler;
     private EventHandler<RoutedEventArgs>? _loadedHandler;
+    private Task? _launchTask;
 
     public event EventHandler? HideRequested;
 
@@ -114,8 +116,24 @@ public partial class TerminalPanel : UserControl
             return false;
 
         StopWaitingForLayout();
-        _ = LaunchAsync();
+        ObserveLaunch(LaunchAsync());
         return true;
+    }
+
+    private void ObserveLaunch(Task launch)
+    {
+        _launchTask = launch;
+        // LaunchAsync already catches, but keep a backstop so a future edit cannot
+        // leave Iciclecreek's async void / fire-and-forget path unobserved again.
+        _ = launch.ContinueWith(
+            static t =>
+            {
+                if (t.IsFaulted && t.Exception != null)
+                    CrashLog.Write(t.Exception.Flatten(), openConsole: false);
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private bool IsEmulatorReady()
@@ -125,12 +143,12 @@ public partial class TerminalPanel : UserControl
         if (Terminal.Bounds.Width < 8 || Terminal.Bounds.Height < 8)
             return false;
 
-        // Do not probe MaxScrollback — that getter is the NRE in the crash log.
-        // Require IsLoaded so TerminalView.OnLoaded has already run with Process=""
-        // before we set Process via LaunchProcess (otherwise OnLoaded auto-spawns
-        // on an async void path and faults go unobserved).
+        // Do not probe MaxScrollback — that getter NREs when _terminal/Buffer is gone
+        // (Iciclecreek LaunchProcess error path). Require a live, loaded view that has
+        // already been arranged so Cols/Rows are real before ConPTY spawn.
         var view = Terminal.GetVisualDescendants().OfType<TerminalView>().FirstOrDefault();
-        return view is { Terminal: not null, IsLoaded: true };
+        return view is { Terminal: not null, IsLoaded: true } &&
+               view.ViewportLines >= 1;
     }
 
     private async Task LaunchAsync()
@@ -139,26 +157,55 @@ public partial class TerminalPanel : UserControl
             return;
 
         _started = true;
+        DisarmAutoLaunch();
         try
         {
             var shell = ResolveShell();
             var cwd = ResolveStartDirectory();
-            await Terminal.LaunchProcess(cwd, shell);
+
+            // Avoid LaunchProcess(cwd, shell): it leaves Process set for the whole
+            // spawn await. A dock re-template then loads a new TerminalView with
+            // Process still set, OnLoaded auto-spawns (async void), the spawn/error
+            // path hits MaxScrollback NRE, and that fault is unobserved.
+            //
+            // LaunchProcess() reads Process into a local before its first await, so
+            // we clear Process immediately after starting the task.
+            Terminal.StartingDirectory = cwd;
+            Terminal.Process = shell;
+            var launch = Terminal.LaunchProcess();
+            DisarmAutoLaunch();
+            await launch.ConfigureAwait(true);
             UpdateTitle();
         }
         catch (Exception ex)
         {
             _started = false;
+            var root = Unwrap(ex);
             if (TitleBlock != null)
-                TitleBlock.Text = "Terminal failed: " + ex.Message;
+            {
+                TitleBlock.Text = root is NullReferenceException
+                    ? "Terminal failed to start (shell spawn error)"
+                    : "Terminal failed: " + root.Message;
+            }
+
             CrashLog.Write(ex, openConsole: false);
         }
         finally
         {
-            // LaunchProcess(cwd, shell) sets Process permanently. Clear it so a
-            // later Unloaded/Loaded cycle cannot auto-spawn from async void OnLoaded.
             DisarmAutoLaunch();
         }
+    }
+
+    private static Exception Unwrap(Exception ex)
+    {
+        if (ex is AggregateException agg)
+        {
+            agg = agg.Flatten();
+            if (agg.InnerExceptions.Count > 0)
+                return agg.InnerExceptions[0];
+        }
+
+        return ex.InnerException ?? ex;
     }
 
     private void DisarmAutoLaunch()
