@@ -77,4 +77,16 @@ public class LspContentChangeTests
         Assert.False(LspCapabilities.SupportsIncrementalSync(JsonNode.Parse(
             """{"capabilities":{"textDocumentSync":{"change":1}}}""")));
     }
+
+    [Fact]
+    public void SupportsCodeActionResolve_reads_boolean_and_options()
+    {
+        Assert.False(LspCapabilities.SupportsCodeActionResolve(null));
+        Assert.False(LspCapabilities.SupportsCodeActionResolve(JsonNode.Parse(
+            """{"capabilities":{"codeActionProvider":true}}""")));
+        Assert.False(LspCapabilities.SupportsCodeActionResolve(JsonNode.Parse(
+            """{"capabilities":{"codeActionProvider":{"resolveProvider":false}}}""")));
+        Assert.True(LspCapabilities.SupportsCodeActionResolve(JsonNode.Parse(
+            """{"capabilities":{"codeActionProvider":{"resolveProvider":true}}}""")));
+    }
 }

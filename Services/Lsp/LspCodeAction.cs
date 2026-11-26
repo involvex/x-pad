@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Nodes;
 
 namespace x_pad.Services.Lsp;
 
@@ -29,4 +30,9 @@ public sealed class LspCodeAction
     public bool IsPreferred { get; init; }
     public LspWorkspaceEdit? Edit { get; init; }
     public bool HasCommandOnly { get; init; }
+
+    /// <summary>
+    /// Original action JSON (including <c>data</c>) for <c>codeAction/resolve</c>.
+    /// </summary>
+    public JsonNode? Raw { get; init; }
 }

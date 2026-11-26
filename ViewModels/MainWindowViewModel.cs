@@ -1951,15 +1951,27 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var dialog = new CodeActionsWindow(actions);
         var picked = await dialog.ShowDialog<LspCodeAction?>(owner);
-        if (picked?.Edit == null)
+        if (picked == null)
+            return;
+
+        var edit = picked.Edit;
+        if (edit == null && client.SupportsCodeActionResolve && picked.Raw != null)
         {
-            if (picked is { HasCommandOnly: true })
-                StatusText = "Command-only code actions are not supported yet";
+            StatusText = "Resolving code action…";
+            var resolved = await client.ResolveCodeActionAsync(picked);
+            edit = resolved?.Edit;
+        }
+
+        if (edit == null)
+        {
+            StatusText = picked.HasCommandOnly
+                ? "Command-only code actions are not supported yet"
+                : "Code action has no text edits";
             return;
         }
 
         var result = await LspWorkspaceEditApplier.ApplyAsync(
-            picked.Edit,
+            edit,
             path =>
             {
                 var tab = Tabs.FirstOrDefault(t =>
