@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="x_pad.Views.RenameSymbolWindow"
+        Title="Rename Symbol"
+        Width="360"
+        Height="150"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <StackPanel Margin="16" Spacing="12">
+        <TextBlock Text="New name:" />
+        <TextBox x:Name="NameBox" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" Click="OnCancel" Width="80" />
+            <Button Content="Rename" Click="OnRename" Width="80" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

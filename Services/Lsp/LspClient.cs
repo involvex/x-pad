@@ -32,6 +32,8 @@ public sealed class LspClient : IAsyncDisposable
     private bool _initialized;
     private bool _supportsIncrementalSync;
     private bool _supportsCodeActionResolve;
+    private bool _supportsRename;
+    private bool _supportsPrepareRename;
     private readonly string _rootUri;
 
     /// <summary>True when the server advertised incremental <c>textDocumentSync</c>.</summary>
@@ -39,6 +41,12 @@ public sealed class LspClient : IAsyncDisposable
 
     /// <summary>True when the server advertised <c>codeActionProvider.resolveProvider</c>.</summary>
     public bool SupportsCodeActionResolve => _supportsCodeActionResolve;
+
+    /// <summary>True when the server advertised <c>renameProvider</c>.</summary>
+    public bool SupportsRename => _supportsRename;
+
+    /// <summary>True when the server advertised <c>renameProvider.prepareProvider</c>.</summary>
+    public bool SupportsPrepareRename => _supportsPrepareRename;
 
     public event Action<string, IReadOnlyList<LspDiagnostic>>? DiagnosticsReceived;
 
@@ -112,6 +120,10 @@ public sealed class LspClient : IAsyncDisposable
                         ["hierarchicalDocumentSymbolSupport"] = true
                     },
                     ["references"] = new JsonObject(),
+                    ["rename"] = new JsonObject
+                    {
+                        ["prepareSupport"] = true
+                    },
                     ["codeAction"] = new JsonObject
                     {
                         ["codeActionLiteralSupport"] = new JsonObject
@@ -147,6 +159,8 @@ public sealed class LspClient : IAsyncDisposable
         var result = await RequestAsync("initialize", init);
         _supportsIncrementalSync = LspCapabilities.SupportsIncrementalSync(result);
         _supportsCodeActionResolve = LspCapabilities.SupportsCodeActionResolve(result);
+        _supportsRename = LspCapabilities.SupportsRename(result);
+        _supportsPrepareRename = LspCapabilities.SupportsPrepareRename(result);
         await NotifyAsync("initialized", new JsonObject());
         _initialized = true;
     }
@@ -403,6 +417,57 @@ public sealed class LspClient : IAsyncDisposable
 
             var result = await RequestAsync("codeAction/resolve", raw);
             return LspCodeActionParser.ParseCodeAction(result);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// <c>textDocument/prepareRename</c>. When prepare is unsupported, returns default behavior
+    /// so the caller can still prompt with the word at the caret.
+    /// </summary>
+    public async Task<LspPrepareRenameResult> PrepareRenameAsync(string uri, int line, int character)
+    {
+        if (!_initialized || !_supportsRename)
+            return LspPrepareRenameResult.Rejected;
+
+        if (!_supportsPrepareRename)
+            return LspPrepareRenameResult.DefaultBehavior;
+
+        try
+        {
+            var result = await RequestAsync("textDocument/prepareRename", new JsonObject
+            {
+                ["textDocument"] = new JsonObject { ["uri"] = uri },
+                ["position"] = new JsonObject { ["line"] = line, ["character"] = character }
+            });
+            return LspNavigationParser.ParsePrepareRename(result);
+        }
+        catch
+        {
+            return LspPrepareRenameResult.DefaultBehavior;
+        }
+    }
+
+    /// <summary>
+    /// <c>textDocument/rename</c>. Returns null when rename is unsupported or the edit is empty.
+    /// </summary>
+    public async Task<LspWorkspaceEdit?> RenameAsync(string uri, int line, int character, string newName)
+    {
+        if (!_initialized || !_supportsRename || string.IsNullOrWhiteSpace(newName))
+            return null;
+
+        try
+        {
+            var result = await RequestAsync("textDocument/rename", new JsonObject
+            {
+                ["textDocument"] = new JsonObject { ["uri"] = uri },
+                ["position"] = new JsonObject { ["line"] = line, ["character"] = character },
+                ["newName"] = newName
+            });
+            return LspCodeActionParser.ParseWorkspaceEdit(result);
         }
         catch
         {

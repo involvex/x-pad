@@ -176,6 +176,7 @@
                 <MenuItem Header="Find _References" Command="{Binding FindReferencesCommand}" InputGesture="Shift+F12" />
                 <MenuItem Header="Document Out_line..." Command="{Binding ShowDocumentOutlineCommand}" InputGesture="Ctrl+Shift+." />
                 <MenuItem Header="Code _Actions..." Command="{Binding ShowCodeActionsCommand}" InputGesture="Ctrl+." />
+                <MenuItem Header="_Rename Symbol..." Command="{Binding RenameSymbolCommand}" InputGesture="Ctrl+Shift+R" />
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="_Explorer"

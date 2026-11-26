@@ -1994,6 +1994,132 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task RenameSymbol()
+    {
+        if (SelectedTab?.FilePath == null)
+        {
+            StatusText = "Save the file to use Rename Symbol";
+            return;
+        }
+
+        if (SelectedTab.IsLargeFile)
+        {
+            StatusText = "Rename Symbol disabled for large files";
+            return;
+        }
+
+        if (SelectedTab.IsReadOnly)
+        {
+            StatusText = "Rename Symbol blocked — buffer is read-only";
+            return;
+        }
+
+        var owner = GetHostWindow();
+        if (owner == null)
+            return;
+
+        var editor = GetSelectedEditor();
+        if (editor == null)
+        {
+            StatusText = "No editor for Rename Symbol";
+            return;
+        }
+
+        var line = Math.Max(0, SelectedTab.LineNumber - 1);
+        var character = Math.Max(0, SelectedTab.ColumnNumber - 1);
+
+        var probe = LanguageHelper.GetProbePath(SelectedTab.FilePath, SelectedTab.LanguageOverrideExtension);
+        var languageId = LanguageHelper.GetLspLanguageId(probe);
+        var client = await _lspManager.GetClientAsync(languageId, SelectedTab.FilePath);
+        if (client == null)
+        {
+            StatusText = "No language server for this file";
+            return;
+        }
+
+        if (!client.SupportsRename)
+        {
+            StatusText = "Rename not supported by language server";
+            return;
+        }
+
+        var uri = new Uri(Path.GetFullPath(SelectedTab.FilePath)).AbsoluteUri;
+        StatusText = "Preparing rename…";
+        var prepare = await client.PrepareRenameAsync(uri, line, character);
+        if (!prepare.Allowed)
+        {
+            StatusText = "Cannot rename here";
+            return;
+        }
+
+        string placeholder;
+        if (prepare.UseDefaultBehavior)
+        {
+            placeholder = editor.GetWordAtCaret();
+        }
+        else if (!string.IsNullOrEmpty(prepare.Placeholder))
+        {
+            placeholder = prepare.Placeholder!;
+        }
+        else
+        {
+            placeholder = editor.GetTextInLspRange(
+                               prepare.StartLine,
+                               prepare.StartCharacter,
+                               prepare.EndLine,
+                               prepare.EndCharacter)
+                           ?? editor.GetWordAtCaret();
+        }
+
+        if (string.IsNullOrWhiteSpace(placeholder))
+        {
+            StatusText = "No symbol at caret to rename";
+            return;
+        }
+
+        var dialog = new RenameSymbolWindow(placeholder);
+        var accepted = await dialog.ShowDialog<bool>(owner);
+        if (!accepted || string.IsNullOrWhiteSpace(dialog.NewName))
+            return;
+
+        if (string.Equals(dialog.NewName, placeholder, StringComparison.Ordinal))
+        {
+            StatusText = "Name unchanged";
+            return;
+        }
+
+        StatusText = "Renaming…";
+        var edit = await client.RenameAsync(uri, line, character, dialog.NewName!);
+        if (edit == null)
+        {
+            StatusText = "Rename returned no text edits";
+            return;
+        }
+
+        var result = await LspWorkspaceEditApplier.ApplyAsync(
+            edit,
+            path =>
+            {
+                var tab = Tabs.FirstOrDefault(t =>
+                    t.FilePath != null &&
+                    string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase));
+                return tab?.Document;
+            },
+            _fileService,
+            path => OpenFileFromPath(path));
+
+        if (result.Errors.Count > 0)
+        {
+            StatusText = result.Errors[0];
+            return;
+        }
+
+        StatusText = result.DocumentsTouched == 1
+            ? $"Renamed to {dialog.NewName}"
+            : $"Renamed to {dialog.NewName} ({result.DocumentsTouched} files)";
+    }
+
+    [RelayCommand]
     private void ToggleDarkMode() => SetTheme("Dark");
 
     [RelayCommand]
@@ -2653,6 +2779,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Find References", "Shift+F12", "Edit", () => FindReferences()),
             Entry("View: Document Outline…", "Ctrl+Shift+.", "View", () => ShowDocumentOutline()),
             Entry("Edit: Code Actions…", "Ctrl+.", "Edit", () => ShowCodeActions()),
+            Entry("Edit: Rename Symbol…", "Ctrl+Shift+R", "Edit", () => RenameSymbol()),
             Entry("Edit: Toggle Line Comment", "Ctrl+/", "Edit", () => { ToggleLineComment(); return Task.CompletedTask; }),
             Entry("Edit: Insert Date/Time", "F5", "Edit", () => { InsertDateTime(); return Task.CompletedTask; }),
             Entry("Edit: Duplicate Line", "Shift+Alt+Down", "Edit", () => { DuplicateLine(); return Task.CompletedTask; }),

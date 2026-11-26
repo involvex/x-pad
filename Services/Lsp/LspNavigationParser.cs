@@ -57,6 +57,41 @@ public static class LspNavigationParser
         return parsed.LocalPath;
     }
 
+    /// <summary>
+    /// Parse <c>textDocument/prepareRename</c> results:
+    /// Range, <c>{ range, placeholder }</c>, <c>{ defaultBehavior: true }</c>, or null (rejected).
+    /// </summary>
+    public static LspPrepareRenameResult ParsePrepareRename(JsonNode? node)
+    {
+        if (node == null)
+            return LspPrepareRenameResult.Rejected;
+
+        if (node is JsonObject obj &&
+            obj["defaultBehavior"] is JsonValue defaultValue &&
+            defaultValue.TryGetValue(out bool defaultBehavior) &&
+            defaultBehavior)
+        {
+            return LspPrepareRenameResult.DefaultBehavior;
+        }
+
+        // { range, placeholder? } or bare Range { start, end }
+        var range = node["range"] ?? (node["start"] != null ? node : null);
+        var start = range?["start"];
+        var end = range?["end"];
+        if (start == null || end == null)
+            return LspPrepareRenameResult.Rejected;
+
+        return new LspPrepareRenameResult
+        {
+            Allowed = true,
+            StartLine = start["line"]?.GetValue<int>() ?? 0,
+            StartCharacter = start["character"]?.GetValue<int>() ?? 0,
+            EndLine = end["line"]?.GetValue<int>() ?? 0,
+            EndCharacter = end["character"]?.GetValue<int>() ?? 0,
+            Placeholder = node["placeholder"]?.GetValue<string>()
+        };
+    }
+
     private static LspLocation? ParseOneLocation(JsonNode? node)
     {
         if (node == null)
