@@ -102,11 +102,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool isExplorerVisible;
 
     [ObservableProperty]
+    private bool isDebugVisible;
+
+    [ObservableProperty]
     private string theme = "Dark";
 
     public FileTreeViewModel FileTree => _fileTree;
     public ExplorerToolViewModel ExplorerTool { get; } = new();
     public TerminalToolViewModel TerminalTool { get; } = new();
+    public DebugToolViewModel DebugTool { get; } = new();
     public WorkspaceService Workspace => _workspace;
     public string? WorkspaceRoot => _workspace.Root;
 
@@ -426,6 +430,16 @@ public partial class MainWindowViewModel : ViewModelBase
         var panel = TerminalTool.Panel;
         panel.SetWorkingDirectoryHint(SelectedTab?.FilePath);
         panel.EnsureStarted();
+    }
+
+    partial void OnIsDebugVisibleChanged(bool value)
+    {
+        Services.Ai.AiDebugLog.Shared.Enabled = value || _settingsService.Current.AiDebugMode;
+        if (!_suppressViewStatus)
+            SetTransientStatus(value ? "AI Debug shown" : "AI Debug hidden");
+
+        if (!_syncingPanelVisibility && _dockFactory != null)
+            EnsureTool(DebugTool, "TerminalToolDock", value);
     }
 
     partial void OnThemeChanged(string value)
@@ -2198,6 +2212,15 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ToggleAiDebug()
+    {
+        IsDebugVisible = !IsDebugVisible;
+        if (IsDebugVisible)
+            _settingsService.Update(s => s.AiDebugMode = true);
+        Services.Ai.AiDebugLog.Shared.Enabled = IsDebugVisible || _settingsService.Current.AiDebugMode;
+    }
+
+    [RelayCommand]
     private void OpenWithVsCode(object? parameter)
     {
         var path = ResolveTabPath(parameter);
@@ -2651,6 +2674,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("View: Split Vertical", null, "View", () => { ToggleSplitVertical(); return Task.CompletedTask; }),
             Entry("View: Split Horizontal", null, "View", () => { ToggleSplitHorizontal(); return Task.CompletedTask; }),
             Entry("View: Toggle Terminal", "Ctrl+`", "View", () => { ToggleTerminal(); return Task.CompletedTask; }),
+            Entry("View: Toggle AI Debug", null, "View", () => { ToggleAiDebug(); return Task.CompletedTask; }),
             Entry("View: Toggle Bookmark", "Ctrl+F2", "View", () => { ToggleBookmark(); return Task.CompletedTask; }),
             Entry("View: Next Bookmark", "F2", "View", () => { NextBookmark(); return Task.CompletedTask; }),
             Entry("View: Previous Bookmark", "Shift+F2", "View", () => { PreviousBookmark(); return Task.CompletedTask; }),
@@ -2821,6 +2845,7 @@ public partial class MainWindowViewModel : ViewModelBase
             s.AiApiKey = dialog.Result.AiApiKey;
             s.AiModel = dialog.Result.AiModel;
             s.AiAutomatic = dialog.Result.AiAutomatic;
+            s.AiDebugMode = dialog.Result.AiDebugMode;
             s.CheckForUpdatesOnStartup = dialog.Result.CheckForUpdatesOnStartup;
             s.KeyBindings = dialog.Result.KeyBindings;
         });
@@ -2838,6 +2863,7 @@ public partial class MainWindowViewModel : ViewModelBase
             EditorThemeService.ApplyAppTheme(dialog.Result.Theme);
 
         ConfigureAutosaveTimer();
+        ApplyAiDebugModeFromSettings();
 
         foreach (var tab in Tabs)
         {
@@ -3709,6 +3735,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _dockFactory.ContextLocator["Explorer"] = () => ExplorerTool;
             _dockFactory.ContextLocator["Terminal"] = () => TerminalTool;
+            _dockFactory.ContextLocator["AiDebug"] = () => DebugTool;
         }
 
         _dockFactory.DockableClosing += OnDockableClosing;
@@ -3721,6 +3748,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyPanelVisibilityFromState();
         EnsureDocumentsBound();
         WireDocumentDockCreate();
+        ApplyAiDebugModeFromSettings();
     }
 
     private void WireDocumentDockCreate()
@@ -3819,6 +3847,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         RegisterToolInDock("ExplorerToolDock", ExplorerTool);
         RegisterToolInDock("TerminalToolDock", TerminalTool);
+        RegisterToolInDock("TerminalToolDock", DebugTool);
     }
 
     private void RegisterToolInDock(string dockId, Tool tool)
@@ -3866,10 +3895,23 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             EnsureTool(ExplorerTool, "ExplorerToolDock", IsExplorerVisible);
             EnsureTool(TerminalTool, "TerminalToolDock", IsTerminalVisible);
+            EnsureTool(DebugTool, "TerminalToolDock", IsDebugVisible);
         }
         finally
         {
             _syncingPanelVisibility = false;
+        }
+    }
+
+    private void ApplyAiDebugModeFromSettings()
+    {
+        var enabled = _settingsService.Current.AiDebugMode;
+        Services.Ai.AiDebugLog.Shared.Enabled = enabled || IsDebugVisible;
+        if (enabled && !IsDebugVisible)
+            IsDebugVisible = true;
+        else if (!enabled && IsDebugVisible)
+        {
+            // Keep panel if user opened it manually; logging follows Enabled flag above.
         }
     }
 
@@ -3905,6 +3947,21 @@ public partial class MainWindowViewModel : ViewModelBase
             try
             {
                 IsTerminalVisible = false;
+            }
+            finally
+            {
+                _syncingPanelVisibility = false;
+            }
+
+            return;
+        }
+
+        if (e.Dockable?.Id == DebugTool.Id)
+        {
+            _syncingPanelVisibility = true;
+            try
+            {
+                IsDebugVisible = false;
             }
             finally
             {

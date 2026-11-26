@@ -18,23 +18,27 @@ public sealed record AiCompletionRequest(
     int MaxTokens = InlineCompletionPrompt.DefaultMaxTokens,
     double Temperature = 0);
 
-public sealed record AiCompletionResult(bool Ok, string Text, string? Error, bool RateLimited);
+public sealed record AiCompletionResult(
+    bool Ok,
+    string Text,
+    string? Error,
+    bool RateLimited,
+    bool ReasoningOnly = false);
 
 /// <summary>Minimal OpenAI-compatible <c>POST /chat/completions</c> client.</summary>
 public sealed class OpenAiChatClient : IDisposable
 {
     public const string KiloGatewayHost = "api.kilo.ai";
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-
-    private static bool IsKiloGateway(Uri uri) =>
-        uri.Host.Equals(KiloGatewayHost, StringComparison.OrdinalIgnoreCase) ||
-        uri.Host.Equals("ai-gateway.kilo.ai", StringComparison.OrdinalIgnoreCase);
+    public const string KiloCompletionModel = "kilo-auto/small";
+    public const string KiloLegacyFreeModel = "kilo-auto/free";
 
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
+    private readonly AiDebugLog _log;
 
-    public OpenAiChatClient(HttpClient? http = null)
+    public OpenAiChatClient(HttpClient? http = null, AiDebugLog? log = null)
     {
+        _log = log ?? AiDebugLog.Shared;
         if (http == null)
         {
             _http = CreateDefaultClient();
@@ -106,8 +110,16 @@ public sealed class OpenAiChatClient : IDisposable
         var m = model.Trim();
         return m.Contains(":free", StringComparison.OrdinalIgnoreCase) ||
                m.EndsWith("/free", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(m, "kilo-auto/free", StringComparison.OrdinalIgnoreCase);
+               string.Equals(m, KiloLegacyFreeModel, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(m, KiloCompletionModel, StringComparison.OrdinalIgnoreCase);
     }
+
+    public static bool IsKiloGatewayHost(string? host) =>
+        !string.IsNullOrEmpty(host) &&
+        (host.Equals(KiloGatewayHost, StringComparison.OrdinalIgnoreCase) ||
+         host.Equals("ai-gateway.kilo.ai", StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsKiloGateway(Uri uri) => IsKiloGatewayHost(uri.Host);
 
     public static Uri? BuildChatCompletionsUri(string? baseUrl)
     {
@@ -140,9 +152,33 @@ public sealed class OpenAiChatClient : IDisposable
             IsKiloGateway(uri) &&
             LooksLikeFreeModel(request.Model))
         {
+            _log.Write("auth", "401 with API key — retrying anonymous for free/small model");
             var anon = await SendCompletionAsync(uri, request, apiKey: "", ct).ConfigureAwait(false);
-            if (anon.Ok)
-                return anon;
+            // Prefer the anonymous outcome unless it also failed auth.
+            if (anon.Ok || anon.Error?.Contains("(401)", StringComparison.Ordinal) != true)
+                result = anon;
+        }
+
+        // kilo-auto/free often routes to reasoning models that never emit content.
+        // Fall back once to kilo-auto/small which returns insert text.
+        if (result.ReasoningOnly &&
+            IsKiloGateway(uri) &&
+            string.Equals(request.Model.Trim(), KiloLegacyFreeModel, StringComparison.OrdinalIgnoreCase))
+        {
+            _log.Write("model", $"reasoning-only from {KiloLegacyFreeModel} — retrying {KiloCompletionModel}");
+            var fallback = request with { Model = KiloCompletionModel };
+            var small = await SendCompletionAsync(uri, fallback, apiKey: "", ct).ConfigureAwait(false);
+            if (small.Ok)
+                return small;
+            if (apiKey.Length > 0)
+            {
+                var smallAuthed = await SendCompletionAsync(uri, fallback, apiKey, ct).ConfigureAwait(false);
+                if (smallAuthed.Ok)
+                    return smallAuthed;
+            }
+
+            if (!small.ReasoningOnly)
+                result = small;
         }
 
         if (!result.Ok && result.Error?.Contains("(401)", StringComparison.Ordinal) == true)
@@ -150,9 +186,18 @@ public sealed class OpenAiChatClient : IDisposable
             return result with
             {
                 Error = IsKiloGateway(uri)
-                    ? "Kilo rejected the API key (401). For kilo-auto/free leave API key empty, " +
+                    ? "Kilo rejected the API key (401). For free completions leave API key empty, " +
                       "or paste the Gateway key from app.kilo.ai → Profile (not an extension session token)."
                     : "AI auth failed (401). Check the API key, or leave it empty if the provider allows anonymous access."
+            };
+        }
+
+        if (result.ReasoningOnly)
+        {
+            return result with
+            {
+                Error = $"AI used its token budget on reasoning with no insertion text. " +
+                        $"Use model {KiloCompletionModel} (Kilo Free preset) instead of {KiloLegacyFreeModel}."
             };
         }
 
@@ -185,13 +230,21 @@ public sealed class OpenAiChatClient : IDisposable
             }
         };
 
-        msg.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+        var bodyJson = JsonSerializer.Serialize(body);
+        msg.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
+
+        _log.Write("http",
+            $"POST {uri} model={request.Model.Trim()} auth={(apiKey.Length > 0 ? "bearer" : "none")} " +
+            $"max_tokens={body.max_tokens}\n{AiDebugLog.SummarizeBody(bodyJson)}");
 
         try
         {
             using var response = await _http.SendAsync(msg, HttpCompletionOption.ResponseContentRead, ct)
                 .ConfigureAwait(false);
             var raw = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+            _log.Write("http",
+                $"← {(int)response.StatusCode} {response.ReasonPhrase}\n{AiDebugLog.SummarizeBody(raw)}");
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 return new AiCompletionResult(false, "", "AI rate limited (429). Try again later.", true);
@@ -207,19 +260,29 @@ public sealed class OpenAiChatClient : IDisposable
             }
 
             using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? "{}" : raw);
+            var resolvedModel = doc.RootElement.TryGetProperty("model", out var modelNode) &&
+                                modelNode.ValueKind == JsonValueKind.String
+                ? modelNode.GetString()
+                : null;
+            if (!string.IsNullOrWhiteSpace(resolvedModel))
+                _log.Write("model", $"resolved upstream model: {resolvedModel}");
+
             var content = TryReadContent(doc.RootElement);
             var cleaned = InlineCompletionPrompt.CleanResponse(content);
             if (cleaned.Length == 0)
             {
                 var finish = TryReadFinishReason(doc.RootElement);
                 var hasReasoning = HasReasoning(doc.RootElement);
-                if (hasReasoning && string.Equals(finish, "length", StringComparison.OrdinalIgnoreCase))
+                if (hasReasoning &&
+                    (string.Equals(finish, "length", StringComparison.OrdinalIgnoreCase) ||
+                     string.IsNullOrEmpty(finish)))
                 {
                     return new AiCompletionResult(
                         false,
                         "",
                         "AI used its token budget on reasoning with no insertion text. Try again.",
-                        false);
+                        false,
+                        ReasoningOnly: true);
                 }
 
                 return new AiCompletionResult(false, "", "AI returned an empty suggestion.", false);
@@ -229,15 +292,18 @@ public sealed class OpenAiChatClient : IDisposable
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
+            _log.Write("http", "← timeout");
             // HttpClient.Timeout surfaces as TaskCanceledException with a still-open token.
             return new AiCompletionResult(false, "", "AI request timed out.", false);
         }
         catch (OperationCanceledException)
         {
+            _log.Write("http", "← cancelled");
             throw;
         }
         catch (Exception ex)
         {
+            _log.Write("http", $"← error: {ex.Message}");
             return new AiCompletionResult(false, "", $"AI request error: {ex.Message}", false);
         }
     }

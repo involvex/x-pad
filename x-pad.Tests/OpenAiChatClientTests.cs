@@ -93,7 +93,7 @@ public class OpenAiChatClientTests
 
         var result = await client.CompleteAsync(new AiCompletionRequest(
             "https://api.kilo.ai/api/gateway",
-            "kilo-auto/free",
+            "kilo-auto/small",
             ApiKey: "session-token",
             SystemPrompt: "sys",
             UserMessage: "user"), CancellationToken.None);
@@ -102,6 +102,38 @@ public class OpenAiChatClientTests
         Assert.Equal("ok;", result.Text);
         Assert.Equal(2, handler.CallCount);
         Assert.Null(handler.LastRequest!.Headers.Authorization);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_KiloAutoFreeReasoning_FallsBackToSmall()
+    {
+        var handler = new SequenceHandler(
+            (HttpStatusCode.OK,
+                """{"model":"reflection/beam-free","choices":[{"finish_reason":"length","message":{"content":"","reasoning":"think"}}]}"""),
+            (HttpStatusCode.OK,
+                """{"model":"google/gemma-4-26b-a4b-it:free","choices":[{"finish_reason":"stop","message":{"content":"turn a + b;"}}]}"""));
+        using var http = new HttpClient(handler);
+        using var client = new OpenAiChatClient(http);
+
+        var result = await client.CompleteAsync(new AiCompletionRequest(
+            "https://api.kilo.ai/api/gateway",
+            "kilo-auto/free",
+            ApiKey: "",
+            SystemPrompt: "sys",
+            UserMessage: "user"), CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.Equal("turn a + b;", result.Text);
+        Assert.Equal(2, handler.CallCount);
+        Assert.Contains("kilo-auto/small", handler.LastBody);
+    }
+
+    [Fact]
+    public void AiDebugLog_RedactsBearerTokens()
+    {
+        var redacted = AiDebugLog.Redact("Authorization: Bearer super-secret-token\napi_key");
+        Assert.DoesNotContain("super-secret-token", redacted);
+        Assert.Contains("Bearer ***", redacted);
     }
 
     [Fact]
@@ -217,18 +249,22 @@ public class OpenAiChatClientTests
 
         public int CallCount => _index;
         public HttpRequestMessage? LastRequest { get; private set; }
+        public string LastBody { get; private set; } = "";
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastRequest = request;
+            LastBody = request.Content == null
+                ? ""
+                : await request.Content.ReadAsStringAsync(cancellationToken);
             var (status, body) = _responses[Math.Min(_index, _responses.Length - 1)];
             _index++;
-            return Task.FromResult(new HttpResponseMessage(status)
+            return new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json")
-            });
+            };
         }
     }
 

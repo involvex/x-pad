@@ -199,6 +199,10 @@
                          IsChecked="{Binding IsTerminalVisible, Mode=OneWay}"
                          Command="{Binding ToggleTerminalCommand}"
                          InputGesture="Ctrl+OemTilde" />
+                <MenuItem Header="AI _Debug"
+                         ToggleType="CheckBox"
+                         IsChecked="{Binding IsDebugVisible, Mode=OneWay}"
+                         Command="{Binding ToggleAiDebugCommand}" />
                 <MenuItem Header="_Split">
                     <MenuItem Header="_Vertical"
                              ToggleType="CheckBox"

@@ -162,7 +162,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Kilo Free"
                                     Command="{Binding ApplyKiloFreePresetCommand}"
-                                    ToolTip.Tip="https://api.kilo.ai/api/gateway · kilo-auto/free · clears API key (anonymous free; ~200 req/h)" />
+                                    ToolTip.Tip="https://api.kilo.ai/api/gateway · kilo-auto/small · clears API key (anonymous; avoids reasoning-only free models)" />
                             <Button Content="Ollama"
                                     Command="{Binding ApplyOllamaPresetCommand}"
                                     ToolTip.Tip="http://127.0.0.1:11434/v1 — local server must already be running" />
@@ -172,6 +172,9 @@
                         <CheckBox Content="Automatic after typing pause"
                                   IsChecked="{Binding AiAutomatic}"
                                   ToolTip.Tip="Off recommended for free remote gateways (rate limits). Prefer on for local models." />
+                        <CheckBox Content="Debug mode (AI request log panel)"
+                                  IsChecked="{Binding AiDebugMode}"
+                                  ToolTip.Tip="Shows View → AI Debug and logs redacted HTTP requests/responses." />
                         <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="12"
                               DataContext="{Binding AiTriggerShortcut}">
                             <TextBlock Grid.Column="0" Text="Trigger key" VerticalAlignment="Center" />
@@ -208,7 +211,7 @@
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Model" VerticalAlignment="Center" />
                             <TextBox Grid.Row="2" Grid.Column="1"
                                      Text="{Binding AiModel}"
-                                     PlaceholderText="kilo-auto/free"
+                                     PlaceholderText="kilo-auto/small"
                                      FontFamily="Cascadia Code, Consolas, monospace"
                                      FontSize="12" />
                         </Grid>

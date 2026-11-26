@@ -46,7 +46,8 @@ public partial class PreferencesViewModel : ViewModelBase
     ];
 
     public const string KiloFreeBaseUrl = "https://api.kilo.ai/api/gateway";
-    public const string KiloFreeModel = "kilo-auto/free";
+    /// <summary>Prefer small — free/auto often routes to reasoning models with empty content.</summary>
+    public const string KiloFreeModel = "kilo-auto/small";
     public const string OllamaBaseUrl = "http://127.0.0.1:11434/v1";
     public const string OllamaDefaultModel = "qwen2.5-coder:1.5b";
 
@@ -136,6 +137,9 @@ public partial class PreferencesViewModel : ViewModelBase
     private bool aiAutomatic;
 
     [ObservableProperty]
+    private bool aiDebugMode;
+
+    [ObservableProperty]
     private bool checkForUpdatesOnStartup = true;
 
     [ObservableProperty]
@@ -201,6 +205,7 @@ public partial class PreferencesViewModel : ViewModelBase
         AiApiKey = settings.AiApiKey ?? "";
         AiModel = settings.AiModel ?? "";
         AiAutomatic = settings.AiAutomatic;
+        AiDebugMode = settings.AiDebugMode;
         CheckForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
         LoadShortcuts(settings.KeyBindings);
     }
@@ -234,6 +239,7 @@ public partial class PreferencesViewModel : ViewModelBase
             AiApiKey = AiApiKey.Trim(),
             AiModel = AiModel.Trim(),
             AiAutomatic = AiAutomatic,
+            AiDebugMode = AiDebugMode,
             CheckForUpdatesOnStartup = CheckForUpdatesOnStartup,
             LastUpdateCheckUtc = original.LastUpdateCheckUtc,
             RecentFiles = [.. original.RecentFiles],
@@ -251,7 +257,7 @@ public partial class PreferencesViewModel : ViewModelBase
     {
         AiCompletionEnabled = true;
         AiBaseUrl = KiloFreeBaseUrl;
-        AiModel = KiloFreeModel;
+        AiModel = KiloFreeModel; // kilo-auto/small — reliable insert text on free tier
         // Free tier is anonymous; a pasted IDE/session token 401s on the gateway.
         AiApiKey = "";
         AiAutomatic = false;
@@ -263,7 +269,8 @@ public partial class PreferencesViewModel : ViewModelBase
         AiCompletionEnabled = true;
         AiBaseUrl = OllamaBaseUrl;
         if (string.IsNullOrWhiteSpace(AiModel) ||
-            string.Equals(AiModel, KiloFreeModel, StringComparison.OrdinalIgnoreCase))
+            string.Equals(AiModel, KiloFreeModel, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(AiModel, "kilo-auto/free", StringComparison.OrdinalIgnoreCase))
             AiModel = OllamaDefaultModel;
         AiAutomatic = true;
     }

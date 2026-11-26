@@ -76,6 +76,9 @@ public sealed class AppSettings
     /// <summary>When true, request a suggestion after typing pauses (~500 ms).</summary>
     public bool AiAutomatic { get; set; }
 
+    /// <summary>When true, show the AI Debug dock and log redacted HTTP traffic.</summary>
+    public bool AiDebugMode { get; set; }
+
     /// <summary>
     /// Optional key-binding overrides keyed by <see cref="Services.KeyBindingCatalog"/> id.
     /// Missing or blank entries use the catalog default.

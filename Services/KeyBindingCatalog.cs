@@ -50,6 +50,7 @@ public static class KeyBindingCatalog
         new("Print", "Print", "Ctrl+Alt+P", "PrintCommand"),
         new("ToggleExplorer", "Toggle explorer", "Ctrl+B", "ToggleExplorerCommand"),
         new("ToggleTerminal", "Toggle terminal", "Ctrl+OemTilde", "ToggleTerminalCommand"),
+        new("ToggleAiDebug", "Toggle AI debug", "Ctrl+Shift+D", "ToggleAiDebugCommand"),
         new("OpenCommandPalette", "Command palette", "Ctrl+Shift+P", "OpenCommandPaletteCommand"),
         new("OpenQuickOpen", "Quick open", "Ctrl+P", "OpenQuickOpenCommand"),
         new("DuplicateLine", "Duplicate line", "Shift+Alt+Down", "DuplicateLineCommand"),
