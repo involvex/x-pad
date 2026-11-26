@@ -1,7 +1,4 @@
 using System;
-using Avalonia.Media;
-using Avalonia.Media.TextFormatting;
-using AvaloniaEdit.Rendering;
 
 namespace x_pad.Editor;
 
@@ -18,7 +15,7 @@ public sealed class InlineGhostSuggestion
     public string Text { get; }
     public bool IsVisible => Text.Length > 0;
 
-    /// <summary>First line only (for single-line visual element rendering).</summary>
+    /// <summary>First line only (for single-line visual rendering).</summary>
     public string DisplayLine
     {
         get
@@ -28,11 +25,41 @@ public sealed class InlineGhostSuggestion
         }
     }
 
+    /// <summary>Short status-bar preview (escaped whitespace, truncated).</summary>
+    public string StatusPreview(int maxChars = 40)
+    {
+        var line = DisplayLine.Replace('\t', ' ');
+        if (line.Length <= maxChars)
+            return line;
+        return line[..(maxChars - 1)] + "…";
+    }
+
     public static InlineGhostSuggestion? FromCleaned(int offset, string? cleaned)
     {
         if (string.IsNullOrEmpty(cleaned))
             return null;
         return new InlineGhostSuggestion(offset, cleaned);
+    }
+
+    /// <summary>
+    /// Drop suggestions that only echo text already after the caret (common with
+    /// reasoning routers that copy the suffix into <c>content</c>).
+    /// </summary>
+    public static InlineGhostSuggestion? FromCleaned(int offset, string? cleaned, string? suffixAfterCaret)
+    {
+        var suggestion = FromCleaned(offset, cleaned);
+        if (suggestion == null)
+            return null;
+
+        if (string.IsNullOrEmpty(suffixAfterCaret))
+            return suggestion;
+
+        var insert = suggestion.Text.Replace("\r\n", "\n", StringComparison.Ordinal);
+        var suffix = suffixAfterCaret.Replace("\r\n", "\n", StringComparison.Ordinal);
+        if (suffix.StartsWith(insert, StringComparison.Ordinal))
+            return null;
+
+        return suggestion;
     }
 
     /// <summary>Returns insert text when the caret still sits on the suggestion origin.</summary>
@@ -44,39 +71,4 @@ public sealed class InlineGhostSuggestion
 
     public bool ShouldClearOnDocumentChange(int documentVersionAtSuggest, int currentDocumentVersion) =>
         IsVisible && documentVersionAtSuggest != currentDocumentVersion;
-}
-
-/// <summary>
-/// Draws gray preview text at <see cref="Suggestion"/> offset without mutating the document.
-/// </summary>
-public sealed class InlineGhostTextGenerator : VisualLineElementGenerator
-{
-    private static readonly IBrush GhostBrush = new SolidColorBrush(Color.FromArgb(0x99, 0x88, 0x88, 0x88));
-
-    public InlineGhostSuggestion? Suggestion { get; set; }
-
-    public override int GetFirstInterestedOffset(int startOffset)
-    {
-        var s = Suggestion;
-        if (s is not { IsVisible: true })
-            return -1;
-        return s.Offset >= startOffset ? s.Offset : -1;
-    }
-
-    public override VisualLineElement? ConstructElement(int offset)
-    {
-        var s = Suggestion;
-        if (s is not { IsVisible: true } || offset != s.Offset)
-            return null;
-
-        var display = s.DisplayLine;
-        if (display.Length == 0)
-            return null;
-
-        // documentLength 0: virtual text that does not consume document characters.
-        var props = new VisualLineElementTextRunProperties(CurrentContext.GlobalTextRunProperties);
-        props.SetForegroundBrush(GhostBrush);
-        var textLine = FormattedTextElement.PrepareText(TextFormatter.Current, display, props);
-        return new FormattedTextElement(textLine, 0);
-    }
 }

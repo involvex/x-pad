@@ -136,6 +136,9 @@ public partial class PreferencesViewModel : ViewModelBase
     private bool aiAutomatic;
 
     [ObservableProperty]
+    private bool aiDebugMode;
+
+    [ObservableProperty]
     private bool checkForUpdatesOnStartup = true;
 
     [ObservableProperty]
@@ -201,6 +204,7 @@ public partial class PreferencesViewModel : ViewModelBase
         AiApiKey = settings.AiApiKey ?? "";
         AiModel = settings.AiModel ?? "";
         AiAutomatic = settings.AiAutomatic;
+        AiDebugMode = settings.AiDebugMode;
         CheckForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
         LoadShortcuts(settings.KeyBindings);
     }
@@ -234,6 +238,7 @@ public partial class PreferencesViewModel : ViewModelBase
             AiApiKey = AiApiKey.Trim(),
             AiModel = AiModel.Trim(),
             AiAutomatic = AiAutomatic,
+            AiDebugMode = AiDebugMode,
             CheckForUpdatesOnStartup = CheckForUpdatesOnStartup,
             LastUpdateCheckUtc = original.LastUpdateCheckUtc,
             RecentFiles = [.. original.RecentFiles],
@@ -251,7 +256,7 @@ public partial class PreferencesViewModel : ViewModelBase
     {
         AiCompletionEnabled = true;
         AiBaseUrl = KiloFreeBaseUrl;
-        AiModel = KiloFreeModel;
+        AiModel = KiloFreeModel; // kilo-auto/free — always free with a Gateway API key
         AiAutomatic = false;
     }
 
@@ -261,7 +266,8 @@ public partial class PreferencesViewModel : ViewModelBase
         AiCompletionEnabled = true;
         AiBaseUrl = OllamaBaseUrl;
         if (string.IsNullOrWhiteSpace(AiModel) ||
-            string.Equals(AiModel, KiloFreeModel, StringComparison.OrdinalIgnoreCase))
+            string.Equals(AiModel, KiloFreeModel, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(AiModel, "kilo-auto/small", StringComparison.OrdinalIgnoreCase))
             AiModel = OllamaDefaultModel;
         AiAutomatic = true;
     }

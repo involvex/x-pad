@@ -8,6 +8,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AvaloniaEdit;
@@ -63,9 +64,10 @@ public partial class DocumentEditor : UserControl
     private int _lspCompletionVersion;
     private readonly List<LspContentChange> _pendingLspChanges = [];
     private bool _lspNeedsFullSync;
-    private readonly InlineGhostTextGenerator _ghostGenerator = new();
     private InlineGhostSuggestion? _ghostSuggestion;
     private int _ghostDocumentVersion = -1;
+    private bool _ghostDisabledAcceptsTab;
+    private bool _ghostScrollHooked;
     private CancellationTokenSource? _aiCompletionCts;
     private int _aiCompletionVersion;
     private OpenAiChatClient? _aiClient;
@@ -395,11 +397,14 @@ public partial class DocumentEditor : UserControl
         _editor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
         _editor.TextArea.TextEntering += OnTextEntering;
         _editor.TextArea.TextEntered += OnTextEntered;
-        _editor.TextArea.KeyDown += OnEditorKeyDown;
+        // Tunnel so we see Tab before TextArea.OnKeyDown (which always inserts indent when AcceptsTab).
+        _editor.TextArea.AddHandler(InputElement.KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
         _editor.PointerWheelChanged += OnPointerWheelChanged;
         _editor.PointerMoved += OnEditorPointerMoved;
         _editor.PointerExited += OnEditorPointerExited;
         _editor.DocumentChanged += OnEditorDocumentChanged;
+        if (GhostToolbar != null)
+            GhostToolbar.PointerPressed += OnGhostToolbarPointerPressed;
 
         EditorThemeService.ThemeChanged += OnThemeChanged;
 
@@ -833,7 +838,7 @@ public partial class DocumentEditor : UserControl
         var version = _changeVersion;
         if (_ghostSuggestion is { IsVisible: true } ghost &&
             ghost.ShouldClearOnDocumentChange(_ghostDocumentVersion, version))
-            ClearGhostSuggestion();
+            ClearGhostSuggestion(clearStatus: true);
         ScheduleFoldingUpdate();
         AccumulateLspChange(e);
         _ = NotifyLspChangeAsync(version);
@@ -1579,7 +1584,7 @@ public partial class DocumentEditor : UserControl
         if (_editor != null &&
             _ghostSuggestion is { IsVisible: true } ghost &&
             ghost.ShouldClearOnCaretMove(_editor.CaretOffset))
-            ClearGhostSuggestion();
+            ClearGhostSuggestion(clearStatus: true);
     }
 
     private void UpdateBracketHighlight()
@@ -1830,7 +1835,7 @@ public partial class DocumentEditor : UserControl
         {
             if (_ghostSuggestion is { IsVisible: true })
             {
-                ClearGhostSuggestion();
+                ClearGhostSuggestion(clearStatus: true);
                 e.Handled = true;
                 return;
             }
@@ -1875,28 +1880,166 @@ public partial class DocumentEditor : UserControl
 
     private void InstallGhostText()
     {
-        if (_editor == null)
-            return;
-        if (!_editor.TextArea.TextView.ElementGenerators.Contains(_ghostGenerator))
-            _editor.TextArea.TextView.ElementGenerators.Add(_ghostGenerator);
+        HideGhostOverlay();
+        HookGhostScroll();
     }
 
     private void UninstallGhostText()
     {
-        if (_editor != null)
-            _editor.TextArea.TextView.ElementGenerators.Remove(_ghostGenerator);
+        UnhookGhostScroll();
         ClearGhostSuggestion();
     }
 
-    private void ClearGhostSuggestion()
+    private void HookGhostScroll()
     {
-        if (_ghostSuggestion == null && _ghostGenerator.Suggestion == null)
+        if (_editor == null || _ghostScrollHooked)
             return;
+        _editor.TextArea.TextView.ScrollOffsetChanged += OnGhostScrollOffsetChanged;
+        _ghostScrollHooked = true;
+    }
+
+    private void UnhookGhostScroll()
+    {
+        if (_editor == null || !_ghostScrollHooked)
+            return;
+        _editor.TextArea.TextView.ScrollOffsetChanged -= OnGhostScrollOffsetChanged;
+        _ghostScrollHooked = false;
+    }
+
+    private void OnGhostScrollOffsetChanged(object? sender, EventArgs e) =>
+        UpdateGhostOverlayPosition();
+
+    private void ClearGhostSuggestion(bool clearStatus = false, bool restoreAcceptsTabImmediately = true)
+    {
+        if (_ghostSuggestion == null && GhostToolbar?.IsVisible != true && GhostPreviewText?.IsVisible != true)
+        {
+            if (restoreAcceptsTabImmediately)
+                RestoreAcceptsTabAfterGhost();
+            return;
+        }
 
         _ghostSuggestion = null;
-        _ghostGenerator.Suggestion = null;
         _ghostDocumentVersion = -1;
-        _editor?.TextArea.TextView.Redraw();
+        HideGhostOverlay();
+        if (restoreAcceptsTabImmediately)
+            RestoreAcceptsTabAfterGhost();
+        if (clearStatus)
+            SetEditorStatus("");
+    }
+
+    private void ShowGhostSuggestion(InlineGhostSuggestion suggestion, int docVersion)
+    {
+        _ghostSuggestion = suggestion;
+        _ghostDocumentVersion = docVersion;
+        // TextArea.OnKeyDown ignores Handled and always indents when AcceptsTab is true.
+        if (_editor != null && !_ghostDisabledAcceptsTab)
+        {
+            _editor.Options.AcceptsTab = false;
+            _ghostDisabledAcceptsTab = true;
+        }
+
+        if (GhostPreviewText != null)
+        {
+            GhostPreviewText.Text = suggestion.DisplayLine;
+            GhostPreviewText.FontSize = _editor?.FontSize ?? 13;
+            GhostPreviewText.FontFamily = _editor?.FontFamily ?? new FontFamily("Cascadia Code, Consolas, monospace");
+            GhostPreviewText.IsVisible = true;
+        }
+
+        if (GhostToolbar != null)
+            GhostToolbar.IsVisible = true;
+
+        if (GhostOverlay != null)
+            GhostOverlay.IsHitTestVisible = true;
+
+        // Layout may not have measured the toolbar yet on this frame.
+        UpdateGhostOverlayPosition();
+        Dispatcher.UIThread.Post(UpdateGhostOverlayPosition, DispatcherPriority.Loaded);
+        SetEditorStatus("AI suggestion · Tab accepts · Esc dismisses");
+        AiDebugLog.Shared.Write("ghost",
+            $"show offset={suggestion.Offset} len={suggestion.Text.Length} preview={AiDebugLog.SummarizeBody(suggestion.DisplayLine)}");
+    }
+
+    private void HideGhostOverlay()
+    {
+        if (GhostToolbar != null)
+            GhostToolbar.IsVisible = false;
+        if (GhostPreviewText != null)
+        {
+            GhostPreviewText.IsVisible = false;
+            GhostPreviewText.Text = "";
+        }
+        if (GhostOverlay != null)
+            GhostOverlay.IsHitTestVisible = false;
+    }
+
+    private void UpdateGhostOverlayPosition()
+    {
+        if (_editor?.Document == null ||
+            _ghostSuggestion is not { IsVisible: true } ghost ||
+            GhostOverlay == null ||
+            GhostPreviewText == null ||
+            GhostToolbar == null)
+            return;
+
+        var document = _editor.Document;
+        if (ghost.Offset < 0 || ghost.Offset > document.TextLength)
+            return;
+
+        TextLocation location;
+        try
+        {
+            location = document.GetLocation(ghost.Offset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return;
+        }
+
+        var textView = _editor.TextArea.TextView;
+        // Document visual coords → TextView viewport → overlay canvas.
+        var textTopDoc = textView.GetVisualPosition(new TextViewPosition(location), VisualYPosition.TextTop);
+        var lineTopDoc = textView.GetVisualPosition(new TextViewPosition(location), VisualYPosition.LineTop);
+        var textTopView = textTopDoc - textView.ScrollOffset;
+        var lineTopView = lineTopDoc - textView.ScrollOffset;
+
+        var textInOverlay = textView.TranslatePoint(textTopView, GhostOverlay);
+        var lineInOverlay = textView.TranslatePoint(lineTopView, GhostOverlay);
+        if (textInOverlay == null || lineInOverlay == null)
+            return;
+
+        Canvas.SetLeft(GhostPreviewText, textInOverlay.Value.X);
+        Canvas.SetTop(GhostPreviewText, textInOverlay.Value.Y);
+
+        // Measure toolbar after it is visible so DesiredSize is valid.
+        GhostToolbar.Measure(Size.Infinity);
+        var barSize = GhostToolbar.DesiredSize;
+        var barX = lineInOverlay.Value.X;
+        var barY = lineInOverlay.Value.Y - barSize.Height - 6;
+        if (barY < 2)
+            barY = lineInOverlay.Value.Y + textView.DefaultLineHeight + 2;
+        var maxX = Math.Max(4, GhostOverlay.Bounds.Width - barSize.Width - 4);
+        if (barX > maxX)
+            barX = maxX;
+
+        Canvas.SetLeft(GhostToolbar, Math.Max(4, barX));
+        Canvas.SetTop(GhostToolbar, barY);
+    }
+
+    private void OnGhostToolbarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(GhostToolbar).Properties.IsLeftButtonPressed)
+            return;
+        if (TryAcceptGhostSuggestion())
+            e.Handled = true;
+    }
+
+    private void RestoreAcceptsTabAfterGhost()
+    {
+        if (!_ghostDisabledAcceptsTab || _editor == null)
+            return;
+        _editor.Options.AcceptsTab = true;
+        _ghostDisabledAcceptsTab = false;
     }
 
     private bool TryAcceptGhostSuggestion()
@@ -1908,11 +2051,14 @@ public partial class DocumentEditor : UserControl
         if (insert == null)
             return false;
 
-        ClearGhostSuggestion();
+        // Keep AcceptsTab=false through the rest of this KeyDown so TextArea.OnKeyDown skips OnTab.
+        ClearGhostSuggestion(restoreAcceptsTabImmediately: false);
         var offset = _editor.CaretOffset;
         _editor.Document.Insert(offset, insert);
         _editor.CaretOffset = offset + insert.Length;
         SetEditorStatus("AI completion accepted");
+        AiDebugLog.Shared.Write("ghost", $"accepted len={insert.Length}");
+        Dispatcher.UIThread.Post(RestoreAcceptsTabAfterGhost);
         return true;
     }
 
@@ -1932,7 +2078,13 @@ public partial class DocumentEditor : UserControl
         if (_editor == null || _document == null || _settings == null)
             return;
         if (_document.IsLargeFile || _document.IsReadOnly)
+        {
+            if (manual)
+                SetEditorStatus(_document.IsReadOnly
+                    ? "AI completions unavailable in read-only buffers"
+                    : "AI completions skipped for large files");
             return;
+        }
 
         var s = _settings.Current;
         if (!s.AiCompletionEnabled || string.IsNullOrWhiteSpace(s.AiBaseUrl) || string.IsNullOrWhiteSpace(s.AiModel))
@@ -1954,7 +2106,11 @@ public partial class DocumentEditor : UserControl
 
         // Popup list wins over ghost text.
         if (_completionWindow != null)
+        {
+            if (manual)
+                SetEditorStatus("Dismiss the completion list before AI suggest");
             return;
+        }
 
         _aiCompletionCts?.Cancel();
         _aiCompletionCts?.Dispose();
@@ -2016,28 +2172,44 @@ public partial class DocumentEditor : UserControl
                 if (version != _aiCompletionVersion || _editor == null)
                     return;
                 if (_editor.CaretOffset != caret || _changeVersion != docVersion)
-                    return;
-                if (_completionWindow != null)
-                    return;
-
-                var suggestion = InlineGhostSuggestion.FromCleaned(caret, result.Text);
-                if (suggestion == null)
                 {
                     if (manual)
-                        SetEditorStatus("AI returned an empty suggestion");
+                        SetEditorStatus("AI suggestion discarded (editor changed)");
+                    return;
+                }
+                if (_completionWindow != null)
+                {
+                    if (manual)
+                        SetEditorStatus("AI suggestion discarded (completion list open)");
                     return;
                 }
 
-                _ghostSuggestion = suggestion;
-                _ghostDocumentVersion = docVersion;
-                _ghostGenerator.Suggestion = suggestion;
-                _editor.TextArea.TextView.Redraw();
-                SetEditorStatus("AI suggestion — Tab to accept, Esc to dismiss");
+                var suffix = caret < _editor.Document.TextLength
+                    ? _editor.Document.GetText(caret, Math.Min(512, _editor.Document.TextLength - caret))
+                    : "";
+                var suggestion = InlineGhostSuggestion.FromCleaned(caret, result.Text, suffix);
+                if (suggestion == null)
+                {
+                    if (manual)
+                        SetEditorStatus(string.IsNullOrEmpty(result.Text)
+                            ? "AI returned an empty suggestion"
+                            : "AI suggestion discarded (already in buffer)");
+                    return;
+                }
+
+                ShowGhostSuggestion(suggestion, docVersion);
+                if (result.UsedAnonymousFallback)
+                    SetEditorStatus("AI suggestion (anonymous — fix API key) · Tab / click Accept");
             });
         }
         catch (OperationCanceledException)
         {
             // Newer keystroke or detach cancelled this request.
+            if (manual && version == _aiCompletionVersion)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                    SetEditorStatus("AI suggestion cancelled"));
+            }
         }
         catch (Exception ex)
         {

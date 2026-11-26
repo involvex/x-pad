@@ -7,11 +7,17 @@ public static class InlineCompletionPrompt
 {
     public const int DefaultPrefixChars = 4000;
     public const int DefaultSuffixChars = 1000;
-    public const int DefaultMaxTokens = 96;
+    /// <summary>
+    /// Headroom for gateways that spend tokens on hidden reasoning before
+    /// <c>message.content</c> (e.g. Kilo <c>kilo-auto/free</c> / beam-free).
+    /// 256 is often entirely consumed by reasoning with an empty insertion.
+    /// </summary>
+    public const int DefaultMaxTokens = 1024;
 
     public const string SystemPrompt =
         "You are a code completion engine. Reply with only the text to insert at the cursor. " +
         "Do not repeat the prefix. Do not use markdown fences. Do not explain. " +
+        "Do not think out loud or narrate. Output only the insertion characters. " +
         "Stop at a short natural boundary (end of statement, closing brace, or a few lines).";
 
     public static (string Prefix, string Suffix) ExtractContext(

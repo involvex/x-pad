@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="x_pad.Views.AiDebugPanel">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    Margin="8,6">
+            <TextBlock Text="AI debug"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+            <Button x:Name="ClearButton" Content="Clear" Padding="10,2" />
+            <TextBlock x:Name="HintText"
+                       Opacity="0.7"
+                       FontSize="11"
+                       VerticalAlignment="Center"
+                       Text="API keys are redacted. Enable Debug mode in Preferences → AI." />
+        </StackPanel>
+        <TextBox x:Name="LogBox"
+                 AcceptsReturn="True"
+                 IsReadOnly="True"
+                 TextWrapping="NoWrap"
+                 FontFamily="Cascadia Code, Consolas, monospace"
+                 FontSize="11"
+                 Margin="8,0,8,8" />
+    </DockPanel>
+</UserControl>
