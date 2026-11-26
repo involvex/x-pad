@@ -31,10 +31,14 @@ public sealed class LspClient : IAsyncDisposable
     private int _nextId = 1;
     private bool _initialized;
     private bool _supportsIncrementalSync;
+    private bool _supportsCodeActionResolve;
     private readonly string _rootUri;
 
     /// <summary>True when the server advertised incremental <c>textDocumentSync</c>.</summary>
     public bool SupportsIncrementalSync => _supportsIncrementalSync;
+
+    /// <summary>True when the server advertised <c>codeActionProvider.resolveProvider</c>.</summary>
+    public bool SupportsCodeActionResolve => _supportsCodeActionResolve;
 
     public event Action<string, IReadOnlyList<LspDiagnostic>>? DiagnosticsReceived;
 
@@ -125,6 +129,10 @@ public sealed class LspClient : IAsyncDisposable
                                     "source.organizeImports"
                                 }
                             }
+                        },
+                        ["resolveSupport"] = new JsonObject
+                        {
+                            ["properties"] = new JsonArray { "edit" }
                         }
                     }
                 }
@@ -138,6 +146,7 @@ public sealed class LspClient : IAsyncDisposable
 
         var result = await RequestAsync("initialize", init);
         _supportsIncrementalSync = LspCapabilities.SupportsIncrementalSync(result);
+        _supportsCodeActionResolve = LspCapabilities.SupportsCodeActionResolve(result);
         await NotifyAsync("initialized", new JsonObject());
         _initialized = true;
     }
@@ -376,6 +385,29 @@ public sealed class LspClient : IAsyncDisposable
         });
 
         return LspCodeActionParser.ParseCodeActions(result);
+    }
+
+    /// <summary>
+    /// Resolve a code action that omitted <c>edit</c> until follow-up.
+    /// Returns null when resolve is unsupported, the action has no raw JSON, or the request fails.
+    /// </summary>
+    public async Task<LspCodeAction?> ResolveCodeActionAsync(LspCodeAction action)
+    {
+        if (!_initialized || !_supportsCodeActionResolve || action.Raw is not JsonObject)
+            return null;
+
+        try
+        {
+            if (action.Raw.DeepClone() is not JsonObject raw)
+                return null;
+
+            var result = await RequestAsync("codeAction/resolve", raw);
+            return LspCodeActionParser.ParseCodeAction(result);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static IReadOnlyList<LspCompletionItem> ParseCompletion(JsonNode? node)

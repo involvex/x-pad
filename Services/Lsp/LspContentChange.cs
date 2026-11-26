@@ -25,6 +25,22 @@ public static class LspCapabilities
 
         return false;
     }
+
+    /// <summary>
+    /// True when <c>codeActionProvider</c> is an options object with <c>resolveProvider: true</c>.
+    /// A bare boolean provider does not advertise resolve.
+    /// </summary>
+    public static bool SupportsCodeActionResolve(JsonNode? initializeResult)
+    {
+        var provider = initializeResult?["capabilities"]?["codeActionProvider"];
+        if (provider is not JsonObject options)
+            return false;
+
+        var resolve = options["resolveProvider"];
+        return resolve is JsonValue resolveValue &&
+               resolveValue.TryGetValue(out bool resolveEnabled) &&
+               resolveEnabled;
+    }
 }
 
 /// <summary>One incremental <c>textDocument/didChange</c> content change (LSP positions are 0-based).</summary>

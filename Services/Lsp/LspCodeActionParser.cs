@@ -26,6 +26,9 @@ public static class LspCodeActionParser
             .ToList();
     }
 
+    /// <summary>Parse a single CodeAction (e.g. <c>codeAction/resolve</c> result).</summary>
+    public static LspCodeAction? ParseCodeAction(JsonNode? node) => ParseOne(node);
+
     public static LspWorkspaceEdit? ParseWorkspaceEdit(JsonNode? node)
     {
         if (node == null)
@@ -80,13 +83,21 @@ public static class LspCodeActionParser
         if (string.IsNullOrWhiteSpace(title))
             return null;
 
+        var raw = node.DeepClone();
         var edit = ParseWorkspaceEdit(node["edit"]);
         var hasCommand = node["command"] != null;
         if (edit == null && !hasCommand)
         {
             // Some servers return Command shape at top level
             if (node["command"] is JsonValue)
-                return new LspCodeAction { Title = title!, HasCommandOnly = true };
+            {
+                return new LspCodeAction
+                {
+                    Title = title!,
+                    HasCommandOnly = true,
+                    Raw = raw
+                };
+            }
         }
 
         return new LspCodeAction
@@ -95,7 +106,8 @@ public static class LspCodeActionParser
             Kind = node["kind"]?.GetValue<string>(),
             IsPreferred = node["isPreferred"]?.GetValue<bool>() == true,
             Edit = edit,
-            HasCommandOnly = edit == null && hasCommand
+            HasCommandOnly = edit == null && hasCommand,
+            Raw = raw
         };
     }
 

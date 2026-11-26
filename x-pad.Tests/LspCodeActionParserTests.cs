@@ -68,5 +68,44 @@ public class LspCodeActionParserTests
         Assert.Single(actions);
         Assert.True(actions[0].HasCommandOnly);
         Assert.Null(actions[0].Edit);
+        Assert.NotNull(actions[0].Raw);
+    }
+
+    [Fact]
+    public void ParseCodeActions_keeps_data_when_edit_omitted()
+    {
+        var json = JsonNode.Parse("""
+            [{"title":"Add missing import","kind":"quickfix","data":{"id":42,"uri":"file:///a.ts"}}]
+            """);
+        var actions = LspCodeActionParser.ParseCodeActions(json);
+        Assert.Single(actions);
+        Assert.Equal("Add missing import", actions[0].Title);
+        Assert.Null(actions[0].Edit);
+        Assert.False(actions[0].HasCommandOnly);
+        Assert.NotNull(actions[0].Raw);
+        Assert.Equal(42, actions[0].Raw!["data"]!["id"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void ParseCodeAction_resolved_payload_has_edit()
+    {
+        var json = JsonNode.Parse("""
+            {
+              "title":"Add missing import",
+              "kind":"quickfix",
+              "data":{"id":42},
+              "edit":{"changes":{"file:///a.ts":[{"range":{"start":{"line":0,"character":0},"end":{"line":0,"character":0}},"newText":"import x;\n"}]}}
+            }
+            """);
+
+        var action = LspCodeActionParser.ParseCodeAction(json);
+        Assert.NotNull(action);
+        Assert.Equal("Add missing import", action!.Title);
+        Assert.NotNull(action.Edit);
+        Assert.Single(action.Edit!.DocumentEdits);
+        Assert.Equal("file:///a.ts", action.Edit.DocumentEdits[0].Uri);
+        Assert.Equal("import x;\n", action.Edit.DocumentEdits[0].Edits[0].NewText);
+        Assert.NotNull(action.Raw);
+        Assert.Equal(42, action.Raw!["data"]!["id"]!.GetValue<int>());
     }
 }
