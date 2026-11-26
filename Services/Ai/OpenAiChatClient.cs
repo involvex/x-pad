@@ -29,8 +29,9 @@ public sealed record AiCompletionResult(
 public sealed class OpenAiChatClient : IDisposable
 {
     public const string KiloGatewayHost = "api.kilo.ai";
-    public const string KiloCompletionModel = "kilo-auto/small";
-    public const string KiloLegacyFreeModel = "kilo-auto/free";
+    public const string KiloFreeModel = "kilo-auto/free";
+    public const int MaxCompletionTokens = 1536;
+    public const int ReasoningRetryTokens = 1024;
 
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
@@ -110,8 +111,7 @@ public sealed class OpenAiChatClient : IDisposable
         var m = model.Trim();
         return m.Contains(":free", StringComparison.OrdinalIgnoreCase) ||
                m.EndsWith("/free", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(m, KiloLegacyFreeModel, StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(m, KiloCompletionModel, StringComparison.OrdinalIgnoreCase);
+               string.Equals(m, KiloFreeModel, StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsKiloGatewayHost(string? host) =>
@@ -142,7 +142,9 @@ public sealed class OpenAiChatClient : IDisposable
             return new AiCompletionResult(false, "", "AI model is empty.", false);
 
         var apiKey = NormalizeApiKey(request.ApiKey);
-        var result = await SendCompletionAsync(uri, request, apiKey, ct).ConfigureAwait(false);
+        var activeKey = apiKey;
+        var result = await SendCompletionAsync(uri, request, activeKey, ct).ConfigureAwait(false);
+        var usedAnonymousFallback = false;
 
         // Kilo free tiers allow anonymous access. A pasted IDE/session token often
         // 401s even when the model itself is free — retry once without Authorization.
@@ -152,33 +154,26 @@ public sealed class OpenAiChatClient : IDisposable
             IsKiloGateway(uri) &&
             LooksLikeFreeModel(request.Model))
         {
-            _log.Write("auth", "401 with API key — retrying anonymous for free/small model");
+            _log.Write("auth", "401 with API key — retrying anonymous for free model (use Gateway key from app.kilo.ai Profile, not an IDE session token)");
             var anon = await SendCompletionAsync(uri, request, apiKey: "", ct).ConfigureAwait(false);
             // Prefer the anonymous outcome unless it also failed auth.
             if (anon.Ok || anon.Error?.Contains("(401)", StringComparison.Ordinal) != true)
+            {
                 result = anon;
+                activeKey = "";
+                usedAnonymousFallback = true;
+            }
         }
 
-        // kilo-auto/free often routes to reasoning models that never emit content.
-        // Fall back once to kilo-auto/small which returns insert text.
-        if (result.ReasoningOnly &&
-            IsKiloGateway(uri) &&
-            string.Equals(request.Model.Trim(), KiloLegacyFreeModel, StringComparison.OrdinalIgnoreCase))
+        // Reasoning models (e.g. beam-free behind kilo-auto/free) often spend a small
+        // max_tokens budget entirely on reasoning. Retry once with a larger budget.
+        if (result.ReasoningOnly && request.MaxTokens < ReasoningRetryTokens)
         {
-            _log.Write("model", $"reasoning-only from {KiloLegacyFreeModel} — retrying {KiloCompletionModel}");
-            var fallback = request with { Model = KiloCompletionModel };
-            var small = await SendCompletionAsync(uri, fallback, apiKey: "", ct).ConfigureAwait(false);
-            if (small.Ok)
-                return small;
-            if (apiKey.Length > 0)
-            {
-                var smallAuthed = await SendCompletionAsync(uri, fallback, apiKey, ct).ConfigureAwait(false);
-                if (smallAuthed.Ok)
-                    return smallAuthed;
-            }
-
-            if (!small.ReasoningOnly)
-                result = small;
+            _log.Write("model", $"reasoning-only with max_tokens={request.MaxTokens} — retrying with {ReasoningRetryTokens}");
+            var boosted = request with { MaxTokens = ReasoningRetryTokens };
+            var retry = await SendCompletionAsync(uri, boosted, activeKey, ct).ConfigureAwait(false);
+            if (retry.Ok || !retry.ReasoningOnly)
+                result = retry;
         }
 
         if (!result.Ok && result.Error?.Contains("(401)", StringComparison.Ordinal) == true)
@@ -186,8 +181,8 @@ public sealed class OpenAiChatClient : IDisposable
             return result with
             {
                 Error = IsKiloGateway(uri)
-                    ? "Kilo rejected the API key (401). For free completions leave API key empty, " +
-                      "or paste the Gateway key from app.kilo.ai → Profile (not an extension session token)."
+                    ? "Kilo rejected the API key (401). Paste the Gateway API key from app.kilo.ai → Profile " +
+                      "(not a Kilo Code IDE/session token). kilo-auto/free is free with a valid Gateway key."
                     : "AI auth failed (401). Check the API key, or leave it empty if the provider allows anonymous access."
             };
         }
@@ -196,9 +191,14 @@ public sealed class OpenAiChatClient : IDisposable
         {
             return result with
             {
-                Error = $"AI used its token budget on reasoning with no insertion text. " +
-                        $"Use model {KiloCompletionModel} (Kilo Free preset) instead of {KiloLegacyFreeModel}."
+                Error = "AI used its token budget on reasoning with no insertion text. Try again, " +
+                        "or raise max tokens / use a non-reasoning model."
             };
+        }
+
+        if (result.Ok && usedAnonymousFallback)
+        {
+            _log.Write("auth", "completed via anonymous fallback after INVALID_TOKEN — replace API key with Gateway key from app.kilo.ai Profile");
         }
 
         return result;
@@ -221,7 +221,7 @@ public sealed class OpenAiChatClient : IDisposable
         {
             model = request.Model.Trim(),
             temperature = request.Temperature,
-            max_tokens = Math.Clamp(request.MaxTokens, 8, 512),
+            max_tokens = Math.Clamp(request.MaxTokens, 8, MaxCompletionTokens),
             stream = false,
             messages = new object[]
             {

@@ -162,7 +162,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Kilo Free"
                                     Command="{Binding ApplyKiloFreePresetCommand}"
-                                    ToolTip.Tip="https://api.kilo.ai/api/gateway · kilo-auto/small · clears API key (anonymous; avoids reasoning-only free models)" />
+                                    ToolTip.Tip="https://api.kilo.ai/api/gateway · kilo-auto/free — always free with a Gateway API key from app.kilo.ai → Profile" />
                             <Button Content="Ollama"
                                     Command="{Binding ApplyOllamaPresetCommand}"
                                     ToolTip.Tip="http://127.0.0.1:11434/v1 — local server must already be running" />
@@ -203,15 +203,15 @@
                             <TextBox Grid.Row="1" Grid.Column="1"
                                      Text="{Binding AiApiKey}"
                                      PasswordChar="•"
-                                     PlaceholderText="Leave empty for Kilo Free; else Gateway key from app.kilo.ai Profile"
+                                     PlaceholderText="Gateway API key from app.kilo.ai → Profile"
                                      FontFamily="Cascadia Code, Consolas, monospace"
                                      FontSize="12"
-                                     ToolTip.Tip="Do not paste a Kilo Code extension/session token. For kilo-auto/free leave empty. Paid models need the Gateway API key from app.kilo.ai → Profile." />
+                                     ToolTip.Tip="Use the Gateway API key from app.kilo.ai → Profile (JWT). Do not paste a Kilo Code IDE/session token — those return INVALID_TOKEN. kilo-auto/free is free with a valid Gateway key; if the key is rejected we fall back to anonymous for free models only." />
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Model" VerticalAlignment="Center" />
                             <TextBox Grid.Row="2" Grid.Column="1"
                                      Text="{Binding AiModel}"
-                                     PlaceholderText="kilo-auto/small"
+                                     PlaceholderText="kilo-auto/free"
                                      FontFamily="Cascadia Code, Consolas, monospace"
                                      FontSize="12" />
                         </Grid>

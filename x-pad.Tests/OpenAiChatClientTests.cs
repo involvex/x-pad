@@ -93,7 +93,7 @@ public class OpenAiChatClientTests
 
         var result = await client.CompleteAsync(new AiCompletionRequest(
             "https://api.kilo.ai/api/gateway",
-            "kilo-auto/small",
+            "kilo-auto/free",
             ApiKey: "session-token",
             SystemPrompt: "sys",
             UserMessage: "user"), CancellationToken.None);
@@ -105,13 +105,13 @@ public class OpenAiChatClientTests
     }
 
     [Fact]
-    public async Task CompleteAsync_KiloAutoFreeReasoning_FallsBackToSmall()
+    public async Task CompleteAsync_ReasoningOnly_RetriesWithHigherMaxTokens()
     {
         var handler = new SequenceHandler(
             (HttpStatusCode.OK,
                 """{"model":"reflection/beam-free","choices":[{"finish_reason":"length","message":{"content":"","reasoning":"think"}}]}"""),
             (HttpStatusCode.OK,
-                """{"model":"google/gemma-4-26b-a4b-it:free","choices":[{"finish_reason":"stop","message":{"content":"turn a + b;"}}]}"""));
+                """{"model":"reflection/beam-free","choices":[{"finish_reason":"stop","message":{"content":"turn a + b;"}}]}"""));
         using var http = new HttpClient(handler);
         using var client = new OpenAiChatClient(http);
 
@@ -120,12 +120,13 @@ public class OpenAiChatClientTests
             "kilo-auto/free",
             ApiKey: "",
             SystemPrompt: "sys",
-            UserMessage: "user"), CancellationToken.None);
+            UserMessage: "user",
+            MaxTokens: 256), CancellationToken.None);
 
         Assert.True(result.Ok);
         Assert.Equal("turn a + b;", result.Text);
         Assert.Equal(2, handler.CallCount);
-        Assert.Contains("kilo-auto/small", handler.LastBody);
+        Assert.Contains($"\"max_tokens\":{OpenAiChatClient.ReasoningRetryTokens}", handler.LastBody);
     }
 
     [Fact]

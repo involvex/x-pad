@@ -46,8 +46,7 @@ public partial class PreferencesViewModel : ViewModelBase
     ];
 
     public const string KiloFreeBaseUrl = "https://api.kilo.ai/api/gateway";
-    /// <summary>Prefer small — free/auto often routes to reasoning models with empty content.</summary>
-    public const string KiloFreeModel = "kilo-auto/small";
+    public const string KiloFreeModel = "kilo-auto/free";
     public const string OllamaBaseUrl = "http://127.0.0.1:11434/v1";
     public const string OllamaDefaultModel = "qwen2.5-coder:1.5b";
 
@@ -257,9 +256,7 @@ public partial class PreferencesViewModel : ViewModelBase
     {
         AiCompletionEnabled = true;
         AiBaseUrl = KiloFreeBaseUrl;
-        AiModel = KiloFreeModel; // kilo-auto/small — reliable insert text on free tier
-        // Free tier is anonymous; a pasted IDE/session token 401s on the gateway.
-        AiApiKey = "";
+        AiModel = KiloFreeModel; // kilo-auto/free — always free with a Gateway API key
         AiAutomatic = false;
     }
 
@@ -270,7 +267,7 @@ public partial class PreferencesViewModel : ViewModelBase
         AiBaseUrl = OllamaBaseUrl;
         if (string.IsNullOrWhiteSpace(AiModel) ||
             string.Equals(AiModel, KiloFreeModel, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(AiModel, "kilo-auto/free", StringComparison.OrdinalIgnoreCase))
+            string.Equals(AiModel, "kilo-auto/small", StringComparison.OrdinalIgnoreCase))
             AiModel = OllamaDefaultModel;
         AiAutomatic = true;
     }
