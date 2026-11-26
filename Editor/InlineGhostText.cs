@@ -1,4 +1,5 @@
 using System;
+using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using AvaloniaEdit.Rendering;
@@ -35,6 +36,27 @@ public sealed class InlineGhostSuggestion
         return new InlineGhostSuggestion(offset, cleaned);
     }
 
+    /// <summary>
+    /// Drop suggestions that only echo text already after the caret (common with
+    /// reasoning routers that copy the suffix into <c>content</c>).
+    /// </summary>
+    public static InlineGhostSuggestion? FromCleaned(int offset, string? cleaned, string? suffixAfterCaret)
+    {
+        var suggestion = FromCleaned(offset, cleaned);
+        if (suggestion == null)
+            return null;
+
+        if (string.IsNullOrEmpty(suffixAfterCaret))
+            return suggestion;
+
+        var insert = suggestion.Text.Replace("\r\n", "\n", StringComparison.Ordinal);
+        var suffix = suffixAfterCaret.Replace("\r\n", "\n", StringComparison.Ordinal);
+        if (suffix.StartsWith(insert, StringComparison.Ordinal))
+            return null;
+
+        return suggestion;
+    }
+
     /// <summary>Returns insert text when the caret still sits on the suggestion origin.</summary>
     public string? TryAccept(int caretOffset) =>
         IsVisible && caretOffset == Offset ? Text : null;
@@ -48,10 +70,11 @@ public sealed class InlineGhostSuggestion
 
 /// <summary>
 /// Draws gray preview text at <see cref="Suggestion"/> offset without mutating the document.
+/// Uses a non-1 visual length so following document text does not paint over the ghost.
 /// </summary>
 public sealed class InlineGhostTextGenerator : VisualLineElementGenerator
 {
-    private static readonly IBrush GhostBrush = new SolidColorBrush(Color.FromArgb(0x99, 0x88, 0x88, 0x88));
+    private static readonly IBrush GhostBrush = new SolidColorBrush(Color.FromArgb(0xB0, 0x9A, 0x9A, 0x9A));
 
     public InlineGhostSuggestion? Suggestion { get; set; }
 
@@ -73,10 +96,46 @@ public sealed class InlineGhostTextGenerator : VisualLineElementGenerator
         if (display.Length == 0)
             return null;
 
-        // documentLength 0: virtual text that does not consume document characters.
         var props = new VisualLineElementTextRunProperties(CurrentContext.GlobalTextRunProperties);
         props.SetForegroundBrush(GhostBrush);
         var textLine = FormattedTextElement.PrepareText(TextFormatter.Current, display, props);
-        return new FormattedTextElement(textLine, 0);
+        // VisualLength must span the preview; FormattedTextElement hardcodes 1 and gets covered.
+        return new InlineGhostVisualElement(textLine, display.Length);
     }
+}
+
+/// <summary>Zero-document-length ghost run with a real visual width.</summary>
+internal sealed class InlineGhostVisualElement : VisualLineElement
+{
+    private readonly TextLine _textLine;
+
+    public InlineGhostVisualElement(TextLine textLine, int visualLength)
+        : base(Math.Max(1, visualLength), documentLength: 0)
+    {
+        _textLine = textLine ?? throw new ArgumentNullException(nameof(textLine));
+    }
+
+    public override TextRun CreateTextRun(int startVisualColumn, ITextRunConstructionContext context) =>
+        new InlineGhostTextRun(_textLine, TextRunProperties);
+}
+
+internal sealed class InlineGhostTextRun : DrawableTextRun
+{
+    private readonly TextLine _textLine;
+
+    public InlineGhostTextRun(TextLine textLine, TextRunProperties properties)
+    {
+        _textLine = textLine;
+        Properties = properties;
+    }
+
+    public override ReadOnlyMemory<char> Text => ReadOnlyMemory<char>.Empty;
+    public override TextRunProperties Properties { get; }
+    public override double Baseline => _textLine.Baseline;
+
+    public override Size Size =>
+        new(_textLine.WidthIncludingTrailingWhitespace, _textLine.Height);
+
+    public override void Draw(DrawingContext drawingContext, Point origin) =>
+        _textLine.Draw(drawingContext, origin);
 }

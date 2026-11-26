@@ -37,4 +37,15 @@ public class InlineGhostTextTests
         Assert.Equal("one", ghost.DisplayLine);
         Assert.Equal("one\ntwo", ghost.TryAccept(0));
     }
+
+    [Fact]
+    public void FromCleaned_RejectsSuffixEcho()
+    {
+        var suffix = "llama serve -m model.gguf --host 0.0.0.0\n}";
+        Assert.Null(InlineGhostSuggestion.FromCleaned(
+            10,
+            "llama serve -m model.gguf --host 0.0.0.0",
+            suffix));
+        Assert.NotNull(InlineGhostSuggestion.FromCleaned(10, " --port 8080", "\n}"));
+    }
 }

@@ -66,6 +66,7 @@ public partial class DocumentEditor : UserControl
     private readonly InlineGhostTextGenerator _ghostGenerator = new();
     private InlineGhostSuggestion? _ghostSuggestion;
     private int _ghostDocumentVersion = -1;
+    private bool _ghostDisabledAcceptsTab;
     private CancellationTokenSource? _aiCompletionCts;
     private int _aiCompletionVersion;
     private OpenAiChatClient? _aiClient;
@@ -395,7 +396,8 @@ public partial class DocumentEditor : UserControl
         _editor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
         _editor.TextArea.TextEntering += OnTextEntering;
         _editor.TextArea.TextEntered += OnTextEntered;
-        _editor.TextArea.KeyDown += OnEditorKeyDown;
+        // Tunnel so we see Tab before TextArea.OnKeyDown (which always inserts indent when AcceptsTab).
+        _editor.TextArea.AddHandler(InputElement.KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
         _editor.PointerWheelChanged += OnPointerWheelChanged;
         _editor.PointerMoved += OnEditorPointerMoved;
         _editor.PointerExited += OnEditorPointerExited;
@@ -833,7 +835,7 @@ public partial class DocumentEditor : UserControl
         var version = _changeVersion;
         if (_ghostSuggestion is { IsVisible: true } ghost &&
             ghost.ShouldClearOnDocumentChange(_ghostDocumentVersion, version))
-            ClearGhostSuggestion();
+            ClearGhostSuggestion(clearStatus: true);
         ScheduleFoldingUpdate();
         AccumulateLspChange(e);
         _ = NotifyLspChangeAsync(version);
@@ -1579,7 +1581,7 @@ public partial class DocumentEditor : UserControl
         if (_editor != null &&
             _ghostSuggestion is { IsVisible: true } ghost &&
             ghost.ShouldClearOnCaretMove(_editor.CaretOffset))
-            ClearGhostSuggestion();
+            ClearGhostSuggestion(clearStatus: true);
     }
 
     private void UpdateBracketHighlight()
@@ -1830,7 +1832,7 @@ public partial class DocumentEditor : UserControl
         {
             if (_ghostSuggestion is { IsVisible: true })
             {
-                ClearGhostSuggestion();
+                ClearGhostSuggestion(clearStatus: true);
                 e.Handled = true;
                 return;
             }
@@ -1888,15 +1890,49 @@ public partial class DocumentEditor : UserControl
         ClearGhostSuggestion();
     }
 
-    private void ClearGhostSuggestion()
+    private void ClearGhostSuggestion(bool clearStatus = false, bool restoreAcceptsTabImmediately = true)
     {
         if (_ghostSuggestion == null && _ghostGenerator.Suggestion == null)
+        {
+            if (restoreAcceptsTabImmediately)
+                RestoreAcceptsTabAfterGhost();
             return;
+        }
 
         _ghostSuggestion = null;
         _ghostGenerator.Suggestion = null;
         _ghostDocumentVersion = -1;
+        if (restoreAcceptsTabImmediately)
+            RestoreAcceptsTabAfterGhost();
         _editor?.TextArea.TextView.Redraw();
+        if (clearStatus)
+            SetEditorStatus("");
+    }
+
+    private void ShowGhostSuggestion(InlineGhostSuggestion suggestion, int docVersion, string status)
+    {
+        _ghostSuggestion = suggestion;
+        _ghostDocumentVersion = docVersion;
+        _ghostGenerator.Suggestion = suggestion;
+        // TextArea.OnKeyDown ignores Handled and always indents when AcceptsTab is true.
+        if (_editor != null && !_ghostDisabledAcceptsTab)
+        {
+            _editor.Options.AcceptsTab = false;
+            _ghostDisabledAcceptsTab = true;
+        }
+
+        _editor?.TextArea.TextView.Redraw();
+        SetEditorStatus(status);
+        AiDebugLog.Shared.Write("ghost",
+            $"show offset={suggestion.Offset} len={suggestion.Text.Length} preview={AiDebugLog.SummarizeBody(suggestion.DisplayLine)}");
+    }
+
+    private void RestoreAcceptsTabAfterGhost()
+    {
+        if (!_ghostDisabledAcceptsTab || _editor == null)
+            return;
+        _editor.Options.AcceptsTab = true;
+        _ghostDisabledAcceptsTab = false;
     }
 
     private bool TryAcceptGhostSuggestion()
@@ -1908,11 +1944,14 @@ public partial class DocumentEditor : UserControl
         if (insert == null)
             return false;
 
-        ClearGhostSuggestion();
+        // Keep AcceptsTab=false through the rest of this KeyDown so TextArea.OnKeyDown skips OnTab.
+        ClearGhostSuggestion(restoreAcceptsTabImmediately: false);
         var offset = _editor.CaretOffset;
         _editor.Document.Insert(offset, insert);
         _editor.CaretOffset = offset + insert.Length;
         SetEditorStatus("AI completion accepted");
+        AiDebugLog.Shared.Write("ghost", $"accepted len={insert.Length}");
+        Dispatcher.UIThread.Post(RestoreAcceptsTabAfterGhost);
         return true;
     }
 
@@ -2038,21 +2077,25 @@ public partial class DocumentEditor : UserControl
                     return;
                 }
 
-                var suggestion = InlineGhostSuggestion.FromCleaned(caret, result.Text);
+                var suffix = caret < _editor.Document.TextLength
+                    ? _editor.Document.GetText(caret, Math.Min(512, _editor.Document.TextLength - caret))
+                    : "";
+                var suggestion = InlineGhostSuggestion.FromCleaned(caret, result.Text, suffix);
                 if (suggestion == null)
                 {
                     if (manual)
-                        SetEditorStatus("AI returned an empty suggestion");
+                        SetEditorStatus(string.IsNullOrEmpty(result.Text)
+                            ? "AI returned an empty suggestion"
+                            : "AI suggestion discarded (already in buffer)");
                     return;
                 }
 
-                _ghostSuggestion = suggestion;
-                _ghostDocumentVersion = docVersion;
-                _ghostGenerator.Suggestion = suggestion;
-                _editor.TextArea.TextView.Redraw();
-                SetEditorStatus(result.UsedAnonymousFallback
-                    ? "AI suggestion (anonymous — fix API key in Preferences → AI) — Tab to accept"
-                    : "AI suggestion — Tab to accept, Esc to dismiss");
+                ShowGhostSuggestion(
+                    suggestion,
+                    docVersion,
+                    result.UsedAnonymousFallback
+                        ? "AI suggestion (anonymous — fix API key in Preferences → AI) — Tab to accept"
+                        : "AI suggestion — Tab to accept, Esc to dismiss");
             });
         }
         catch (OperationCanceledException)
