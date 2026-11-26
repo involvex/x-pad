@@ -48,4 +48,12 @@ public class InlineGhostTextTests
             suffix));
         Assert.NotNull(InlineGhostSuggestion.FromCleaned(10, " --port 8080", "\n}"));
     }
+
+    [Fact]
+    public void StatusPreview_TruncatesLongText()
+    {
+        var ghost = new InlineGhostSuggestion(0, "abcdefghijklmnopqrstuvwxyz0123456789EXTRA");
+        Assert.Equal("abcdefghijklmnopqrstuvwxyz0123456789EXT…", ghost.StatusPreview(40));
+        Assert.Equal("sudo", new InlineGhostSuggestion(0, "sudo").StatusPreview());
+    }
 }

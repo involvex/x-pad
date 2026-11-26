@@ -63,7 +63,7 @@ public partial class DocumentEditor : UserControl
     private int _lspCompletionVersion;
     private readonly List<LspContentChange> _pendingLspChanges = [];
     private bool _lspNeedsFullSync;
-    private readonly InlineGhostTextGenerator _ghostGenerator = new();
+    private readonly InlineGhostRenderer _ghostRenderer = new();
     private InlineGhostSuggestion? _ghostSuggestion;
     private int _ghostDocumentVersion = -1;
     private bool _ghostDisabledAcceptsTab;
@@ -1879,20 +1879,20 @@ public partial class DocumentEditor : UserControl
     {
         if (_editor == null)
             return;
-        if (!_editor.TextArea.TextView.ElementGenerators.Contains(_ghostGenerator))
-            _editor.TextArea.TextView.ElementGenerators.Add(_ghostGenerator);
+        if (!_editor.TextArea.TextView.BackgroundRenderers.Contains(_ghostRenderer))
+            _editor.TextArea.TextView.BackgroundRenderers.Add(_ghostRenderer);
     }
 
     private void UninstallGhostText()
     {
         if (_editor != null)
-            _editor.TextArea.TextView.ElementGenerators.Remove(_ghostGenerator);
+            _editor.TextArea.TextView.BackgroundRenderers.Remove(_ghostRenderer);
         ClearGhostSuggestion();
     }
 
     private void ClearGhostSuggestion(bool clearStatus = false, bool restoreAcceptsTabImmediately = true)
     {
-        if (_ghostSuggestion == null && _ghostGenerator.Suggestion == null)
+        if (_ghostSuggestion == null && _ghostRenderer.Suggestion == null)
         {
             if (restoreAcceptsTabImmediately)
                 RestoreAcceptsTabAfterGhost();
@@ -1900,20 +1900,20 @@ public partial class DocumentEditor : UserControl
         }
 
         _ghostSuggestion = null;
-        _ghostGenerator.Suggestion = null;
+        _ghostRenderer.Suggestion = null;
         _ghostDocumentVersion = -1;
         if (restoreAcceptsTabImmediately)
             RestoreAcceptsTabAfterGhost();
-        _editor?.TextArea.TextView.Redraw();
+        _editor?.TextArea.TextView.InvalidateLayer(KnownLayer.Caret);
         if (clearStatus)
             SetEditorStatus("");
     }
 
-    private void ShowGhostSuggestion(InlineGhostSuggestion suggestion, int docVersion, string status)
+    private void ShowGhostSuggestion(InlineGhostSuggestion suggestion, int docVersion)
     {
         _ghostSuggestion = suggestion;
         _ghostDocumentVersion = docVersion;
-        _ghostGenerator.Suggestion = suggestion;
+        _ghostRenderer.Suggestion = suggestion;
         // TextArea.OnKeyDown ignores Handled and always indents when AcceptsTab is true.
         if (_editor != null && !_ghostDisabledAcceptsTab)
         {
@@ -1921,7 +1921,9 @@ public partial class DocumentEditor : UserControl
             _ghostDisabledAcceptsTab = true;
         }
 
-        _editor?.TextArea.TextView.Redraw();
+        _editor?.TextArea.TextView.InvalidateLayer(KnownLayer.Caret);
+        var preview = suggestion.StatusPreview();
+        var status = $"AI ready · Tab ⇥ {preview} · Esc dismiss";
         SetEditorStatus(status);
         AiDebugLog.Shared.Write("ghost",
             $"show offset={suggestion.Offset} len={suggestion.Text.Length} preview={AiDebugLog.SummarizeBody(suggestion.DisplayLine)}");
@@ -2090,12 +2092,13 @@ public partial class DocumentEditor : UserControl
                     return;
                 }
 
-                ShowGhostSuggestion(
-                    suggestion,
-                    docVersion,
-                    result.UsedAnonymousFallback
-                        ? "AI suggestion (anonymous — fix API key in Preferences → AI) — Tab to accept"
-                        : "AI suggestion — Tab to accept, Esc to dismiss");
+                ShowGhostSuggestion(suggestion, docVersion);
+                if (result.UsedAnonymousFallback)
+                {
+                    // Keep the Tab preview first; append auth hint after a short delay via status.
+                    SetEditorStatus(
+                        $"AI ready · Tab ⇥ {suggestion.StatusPreview()} · Esc · (anonymous — fix API key)");
+                }
             });
         }
         catch (OperationCanceledException)
