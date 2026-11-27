@@ -1,5 +1,9 @@
 # Changelog
 
+
+## 0.5.11 - 2026-11-27
+
+- feat(lsp): go to symbol in workspace via workspace/symbol
 ## Unreleased
 
 - feat(lsp): go to symbol in workspace via workspace/symbol
