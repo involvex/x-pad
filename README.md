@@ -12,7 +12,7 @@ Built with **.NET 10**, **Avalonia UI**, and **AvaloniaEdit** (TextMate highligh
 - MIT-friendly TextMate syntax highlighting + Dark / Light / System / Monokai / Hacker / AMOLED / GitHub themes
 - VS Code-style shortcuts by default (`Ctrl+P` Quick Open, `Ctrl+D` multi-cursor, `Ctrl+B` Explorer; Preferences → Shortcuts → VS Code)
 - Find / replace, find/replace in open tabs (regex, whole word), bookmarks, bracket match, multi-occurrence edit
-- Completions + optional stdio LSP (hover, F12 definition, Shift+F12 references, outline, Ctrl+. code actions / text edits, Ctrl+Shift+R rename)
+- Completions + optional stdio LSP (hover, F12 definition, Shift+F12 references, Ctrl+T workspace symbols, outline, Ctrl+. code actions / text edits, Ctrl+Shift+R rename)
 - Optional AI ghost-text completions (default `Ctrl+Alt+Space`, configurable in Preferences → AI) via any OpenAI-compatible API (Kilo Free, Ollama, custom); Tab accepts, Esc dismisses
 - Encoding / BOM / line endings preserved on save; re-decode from disk bytes (incl. UTF-16 BE)
 - Read-only buffers, crash recovery for dirty/untitled tabs, live external-change watching

@@ -4,9 +4,11 @@ using System.Text.Json.Nodes;
 
 namespace x_pad.Services.Lsp;
 
-/// <summary>Pure parsers for definition / documentSymbol LSP payloads.</summary>
+/// <summary>Pure parsers for definition / documentSymbol / workspace/symbol LSP payloads.</summary>
 public static class LspNavigationParser
 {
+    public const int DefaultWorkspaceSymbolMaxHits = 200;
+
     public static IReadOnlyList<LspLocation> ParseLocations(JsonNode? node)
     {
         if (node == null)
@@ -40,6 +42,28 @@ public static class LspNavigationParser
             if (symbol != null)
                 list.Add(symbol);
         }
+        return list;
+    }
+
+    public static IReadOnlyList<LspWorkspaceSymbol> ParseWorkspaceSymbols(
+        JsonNode? node,
+        int maxHits = DefaultWorkspaceSymbolMaxHits)
+    {
+        if (node is not JsonArray array)
+            return [];
+
+        var cap = Math.Max(1, maxHits);
+        var list = new List<LspWorkspaceSymbol>();
+        foreach (var item in array)
+        {
+            if (list.Count >= cap)
+                break;
+
+            var parsed = ParseOneWorkspaceSymbol(item);
+            if (parsed != null)
+                list.Add(parsed);
+        }
+
         return list;
     }
 
@@ -89,6 +113,28 @@ public static class LspNavigationParser
             EndLine = end["line"]?.GetValue<int>() ?? 0,
             EndCharacter = end["character"]?.GetValue<int>() ?? 0,
             Placeholder = node["placeholder"]?.GetValue<string>()
+        };
+    }
+
+    private static LspWorkspaceSymbol? ParseOneWorkspaceSymbol(JsonNode? node)
+    {
+        if (node == null)
+            return null;
+
+        var name = node["name"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        var location = ParseOneLocation(node["location"]);
+        if (location == null)
+            return null;
+
+        return new LspWorkspaceSymbol
+        {
+            Name = name!,
+            Kind = node["kind"]?.GetValue<int>() ?? 0,
+            ContainerName = node["containerName"]?.GetValue<string>(),
+            Location = location
         };
     }
 

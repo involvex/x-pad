@@ -78,6 +78,7 @@ public class KeyBindingCatalogTests
         Assert.Equal("Ctrl+B", KeyBindingCatalog.ResolveGesture("ToggleExplorer", null));
         Assert.Equal("Ctrl+Alt+P", KeyBindingCatalog.ResolveGesture("Print", null));
         Assert.Equal("Ctrl+Shift+N", KeyBindingCatalog.ResolveGesture("NewWindow", null));
+        Assert.Equal("Ctrl+T", KeyBindingCatalog.ResolveGesture("GoToSymbolInWorkspace", null));
         Assert.Null(KeyBindingCatalog.ValidateOverrides(KeyBindingCatalog.VsCodePreset));
     }
 

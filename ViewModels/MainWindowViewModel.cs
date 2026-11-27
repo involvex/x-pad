@@ -1836,6 +1836,73 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusText = "Reference target not on disk";
     }
 
+    [RelayCommand]
+    private async Task GoToSymbolInWorkspace()
+    {
+        if (SelectedTab?.FilePath == null)
+        {
+            StatusText = "Save the file to use Go to Symbol";
+            return;
+        }
+
+        if (SelectedTab.IsLargeFile)
+        {
+            StatusText = "Go to Symbol disabled for large files";
+            return;
+        }
+
+        var owner = GetHostWindow();
+        if (owner == null)
+            return;
+
+        var probe = LanguageHelper.GetProbePath(SelectedTab.FilePath, SelectedTab.LanguageOverrideExtension);
+        var languageId = LanguageHelper.GetLspLanguageId(probe);
+        var client = await _lspManager.GetClientAsync(languageId, SelectedTab.FilePath);
+        if (client == null)
+        {
+            StatusText = "No language server for this file";
+            return;
+        }
+
+        if (!client.SupportsWorkspaceSymbol)
+        {
+            StatusText = "Workspace symbols not supported by this language server";
+            return;
+        }
+
+        var query = GetSelectedEditor()?.GetWordAtCaret()?.Trim() ?? "";
+        var prompt = new GoToSymbolQueryWindow(query);
+        var confirmed = await prompt.ShowDialog<bool?>(owner);
+        if (confirmed != true)
+            return;
+        query = prompt.Query;
+
+        StatusText = "Searching symbols…";
+        var symbols = await client.WorkspaceSymbolsAsync(query);
+        if (symbols.Count == 0)
+        {
+            StatusText = string.IsNullOrEmpty(query)
+                ? "No workspace symbols"
+                : $"No symbols matching '{query}'";
+            return;
+        }
+
+        if (symbols.Count == 1)
+        {
+            if (!await JumpToLspLocationAsync(symbols[0].Location, "Symbol"))
+                StatusText = "Symbol target not on disk";
+            return;
+        }
+
+        var dialog = new WorkspaceSymbolsWindow(symbols);
+        var hit = await dialog.ShowDialog<WorkspaceSymbolHit?>(owner);
+        if (hit == null)
+            return;
+
+        if (!await JumpToLspLocationAsync(hit.Location, "Symbol"))
+            StatusText = "Symbol target not on disk";
+    }
+
     private async Task<bool> JumpToLspLocationAsync(LspLocation target, string label)
     {
         var path = LspNavigationParser.TryUriToLocalPath(target.Uri);
@@ -2777,6 +2844,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Entry("Edit: Go to Line…", "Ctrl+G", "Edit", () => GoToLine()),
             Entry("Edit: Go to Definition", "F12", "Edit", () => GoToDefinition()),
             Entry("Edit: Find References", "Shift+F12", "Edit", () => FindReferences()),
+            Entry("Edit: Go to Symbol in Workspace…", "Ctrl+T", "Edit", () => GoToSymbolInWorkspace()),
             Entry("View: Document Outline…", "Ctrl+Shift+.", "View", () => ShowDocumentOutline()),
             Entry("Edit: Code Actions…", "Ctrl+.", "Edit", () => ShowCodeActions()),
             Entry("Edit: Rename Symbol…", "Ctrl+Shift+R", "Edit", () => RenameSymbol()),
