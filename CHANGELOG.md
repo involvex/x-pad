@@ -6,6 +6,7 @@
 - feat(lsp): go to symbol in workspace via workspace/symbol
 ## Unreleased
 
+- docs: add Microsoft Store badge to README and docs site
 - feat(lsp): go to symbol in workspace via workspace/symbol
 
 ## 0.5.10 - 2026-11-26
