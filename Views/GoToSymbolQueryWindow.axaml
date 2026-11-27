@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="x_pad.Views.GoToSymbolQueryWindow"
+        Title="Go to Symbol in Workspace"
+        Width="360"
+        Height="150"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <StackPanel Margin="16" Spacing="12">
+        <TextBlock Text="Symbol query:" />
+        <TextBox x:Name="QueryBox" PlaceholderText="Name or prefix" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" Click="OnCancel" Width="80" />
+            <Button Content="Search" Click="OnSearch" Width="80" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

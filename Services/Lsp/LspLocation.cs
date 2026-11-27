@@ -21,6 +21,15 @@ public sealed class LspDocumentSymbol
     public IReadOnlyList<LspDocumentSymbol> Children { get; init; } = [];
 }
 
+/// <summary>One <c>workspace/symbol</c> hit (SymbolInformation or WorkspaceSymbol).</summary>
+public sealed class LspWorkspaceSymbol
+{
+    public required string Name { get; init; }
+    public int Kind { get; init; }
+    public string? ContainerName { get; init; }
+    public required LspLocation Location { get; init; }
+}
+
 /// <summary>
 /// Result of <c>textDocument/prepareRename</c>.
 /// Positions are 0-based LSP coordinates when a range is present.

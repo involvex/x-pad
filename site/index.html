@@ -59,7 +59,7 @@
             <li><strong>Find everywhere</strong> In buffer, open tabs, or folder — case, whole word, regex.</li>
             <li><strong>File fidelity</strong> Encoding, BOM, and CRLF/LF/CR preserved on save.</li>
             <li><strong>Workspace</strong> Open Folder explorer; find/replace on disk under the root.</li>
-            <li><strong>Optional LSP</strong> Hover, definition, references, outline, code actions.</li>
+            <li><strong>Optional LSP</strong> Hover, definition, references, workspace symbols, outline, code actions, rename.</li>
           </ul>
           <p>
             Settings and recovery live under <code class="inline">%APPDATA%\XPad\</code>
@@ -151,7 +151,9 @@ pwsh scripts/publish-msix.ps1 `
             <li>Go to definition (<span class="kbd"><kbd>F12</kbd></span>)</li>
             <li>Find references (<span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>F12</kbd></span>)</li>
             <li>Document outline (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>.</kbd></span>)</li>
+            <li>Go to symbol in workspace (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>T</kbd></span>)</li>
             <li>Code actions with text edits (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>.</kbd></span>)</li>
+            <li>Rename symbol (<span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>R</kbd></span>)</li>
           </ul>
           <p>
             Missing servers are ignored. LSP <code class="inline">rootUri</code> follows the Open Folder workspace when one is set.
@@ -216,7 +218,9 @@ pwsh scripts/publish-msix.ps1 `
             <tbody>
               <tr><td>Go to definition</td><td><span class="kbd"><kbd>F12</kbd></span></td></tr>
               <tr><td>Find references</td><td><span class="kbd"><kbd>Shift</kbd><span class="plus">+</span><kbd>F12</kbd></span></td></tr>
+              <tr><td>Go to symbol in workspace</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>T</kbd></span></td></tr>
               <tr><td>Document outline</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>.</kbd></span></td></tr>
+              <tr><td>Rename symbol</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>R</kbd></span></td></tr>
               <tr><td>Code actions</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>.</kbd></span></td></tr>
               <tr><td>Completions</td><td><span class="kbd"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Space</kbd></span></td></tr>
             </tbody>

@@ -107,7 +107,7 @@ PowerShell scripts live in `scripts/`: `publish-win-x64.ps1`,
 - Find / replace in open tabs (`Ctrl+Shift+F`): match case, whole word, regex, replace / replace all (500-hit cap)
 - Open Folder (`Ctrl+Shift+O`) + explorer sidebar; View → Explorer opens last workspace or home when none is open; find/replace in folder (`Ctrl+Shift+H`); excludes `.git` / `node_modules` / `bin` / `obj` / `.vs`; LSP `rootUri` follows the workspace folder
 - Optional autosave (prefs: interval seconds; 0 = off)
-- Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles; F12 definition; Shift+F12 references; Ctrl+Shift+. outline; Ctrl+. code actions with WorkspaceEdit text edits; Ctrl+Shift+R rename symbol)
+- Word completion (`Ctrl+Space`) + optional stdio LSP (completion / hover / diagnostics + squiggles; F12 definition; Shift+F12 references; Ctrl+T workspace symbols; Ctrl+Shift+. outline; Ctrl+. code actions with WorkspaceEdit text edits; Ctrl+Shift+R rename symbol)
 - Optional AI ghost-text completions (default `Ctrl+Alt+Space`, Preferences → AI trigger key / Shortcuts; Tab accept) via OpenAI-compatible providers (Kilo Free = `kilo-auto/free` + Gateway API key; Ollama / custom); AI Debug dock (`Ctrl+Shift+D` / Preferences → AI debug mode); off by default
 - Encoding + BOM + CRLF/LF/CR preserved on save; re-decode from kept source bytes (UTF-8 / BOM / UTF-16 LE+BE / Latin-1)
 - Read-only mode (from file attributes + File menu toggle); status-bar `RO` indicator

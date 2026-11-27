@@ -42,6 +42,19 @@ public static class LspCapabilities
                resolveEnabled;
     }
 
+    /// <summary>True when <c>workspaceSymbolProvider</c> is true or an options object.</summary>
+    public static bool SupportsWorkspaceSymbol(JsonNode? initializeResult)
+    {
+        var provider = initializeResult?["capabilities"]?["workspaceSymbolProvider"];
+        if (provider is null)
+            return false;
+
+        if (provider is JsonValue value && value.TryGetValue(out bool enabled))
+            return enabled;
+
+        return provider is JsonObject;
+    }
+
     /// <summary>True when <c>renameProvider</c> is true or an options object.</summary>
     public static bool SupportsRename(JsonNode? initializeResult)
     {

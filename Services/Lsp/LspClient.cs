@@ -34,6 +34,7 @@ public sealed class LspClient : IAsyncDisposable
     private bool _supportsCodeActionResolve;
     private bool _supportsRename;
     private bool _supportsPrepareRename;
+    private bool _supportsWorkspaceSymbol;
     private readonly string _rootUri;
 
     /// <summary>True when the server advertised incremental <c>textDocumentSync</c>.</summary>
@@ -47,6 +48,9 @@ public sealed class LspClient : IAsyncDisposable
 
     /// <summary>True when the server advertised <c>renameProvider.prepareProvider</c>.</summary>
     public bool SupportsPrepareRename => _supportsPrepareRename;
+
+    /// <summary>True when the server advertised <c>workspaceSymbolProvider</c>.</summary>
+    public bool SupportsWorkspaceSymbol => _supportsWorkspaceSymbol;
 
     public event Action<string, IReadOnlyList<LspDiagnostic>>? DiagnosticsReceived;
 
@@ -147,6 +151,10 @@ public sealed class LspClient : IAsyncDisposable
                             ["properties"] = new JsonArray { "edit" }
                         }
                     }
+                },
+                ["workspace"] = new JsonObject
+                {
+                    ["symbol"] = new JsonObject()
                 }
             },
             ["clientInfo"] = new JsonObject
@@ -161,6 +169,7 @@ public sealed class LspClient : IAsyncDisposable
         _supportsCodeActionResolve = LspCapabilities.SupportsCodeActionResolve(result);
         _supportsRename = LspCapabilities.SupportsRename(result);
         _supportsPrepareRename = LspCapabilities.SupportsPrepareRename(result);
+        _supportsWorkspaceSymbol = LspCapabilities.SupportsWorkspaceSymbol(result);
         await NotifyAsync("initialized", new JsonObject());
         _initialized = true;
     }
@@ -297,6 +306,30 @@ public sealed class LspClient : IAsyncDisposable
         });
 
         return LspNavigationParser.ParseLocations(result);
+    }
+
+    /// <summary>
+    /// <c>workspace/symbol</c>. Returns an empty list when unsupported or the request fails.
+    /// </summary>
+    public async Task<IReadOnlyList<LspWorkspaceSymbol>> WorkspaceSymbolsAsync(
+        string query,
+        int maxHits = LspNavigationParser.DefaultWorkspaceSymbolMaxHits)
+    {
+        if (!_initialized || !_supportsWorkspaceSymbol)
+            return [];
+
+        try
+        {
+            var result = await RequestAsync("workspace/symbol", new JsonObject
+            {
+                ["query"] = query ?? ""
+            });
+            return LspNavigationParser.ParseWorkspaceSymbols(result, maxHits);
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     public async Task<IReadOnlyList<LspDocumentSymbol>> DocumentSymbolsAsync(string uri)

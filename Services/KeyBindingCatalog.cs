@@ -42,6 +42,7 @@ public static class KeyBindingCatalog
         new("GoToLine", "Go to line", "Ctrl+G", "GoToLineCommand"),
         new("GoToDefinition", "Go to definition", "F12", "GoToDefinitionCommand"),
         new("FindReferences", "Find references", "Shift+F12", "FindReferencesCommand"),
+        new("GoToSymbolInWorkspace", "Go to symbol in workspace", "Ctrl+T", "GoToSymbolInWorkspaceCommand"),
         new("ShowDocumentOutline", "Document outline", "Ctrl+Shift+OemPeriod", "ShowDocumentOutlineCommand"),
         new("ShowCodeActions", "Code actions", "Ctrl+OemPeriod", "ShowCodeActionsCommand"),
         new("RenameSymbol", "Rename symbol", "Ctrl+Shift+R", "RenameSymbolCommand"),
