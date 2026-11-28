@@ -55,6 +55,22 @@ public static class LspCapabilities
         return provider is JsonObject;
     }
 
+    /// <summary>
+    /// True when <c>workspaceSymbolProvider</c> is an options object with <c>resolveProvider: true</c>.
+    /// A bare boolean provider does not advertise resolve.
+    /// </summary>
+    public static bool SupportsWorkspaceSymbolResolve(JsonNode? initializeResult)
+    {
+        var provider = initializeResult?["capabilities"]?["workspaceSymbolProvider"];
+        if (provider is not JsonObject options)
+            return false;
+
+        var resolve = options["resolveProvider"];
+        return resolve is JsonValue resolveValue &&
+               resolveValue.TryGetValue(out bool resolveEnabled) &&
+               resolveEnabled;
+    }
+
     /// <summary>True when <c>renameProvider</c> is true or an options object.</summary>
     public static bool SupportsRename(JsonNode? initializeResult)
     {

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Nodes;
 
 namespace x_pad.Services.Lsp;
 
@@ -28,6 +29,17 @@ public sealed class LspWorkspaceSymbol
     public int Kind { get; init; }
     public string? ContainerName { get; init; }
     public required LspLocation Location { get; init; }
+
+    /// <summary>
+    /// True when the location included a range (including a real symbol at 0:0).
+    /// False for URI-only locations that need <c>workspaceSymbol/resolve</c>.
+    /// </summary>
+    public bool HasRange { get; init; }
+
+    /// <summary>
+    /// Original symbol JSON (including <c>data</c>) for <c>workspaceSymbol/resolve</c>.
+    /// </summary>
+    public JsonNode? Raw { get; init; }
 }
 
 /// <summary>

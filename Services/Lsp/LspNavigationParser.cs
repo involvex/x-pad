@@ -67,6 +67,10 @@ public static class LspNavigationParser
         return list;
     }
 
+    /// <summary>Parse a single WorkspaceSymbol (e.g. <c>workspaceSymbol/resolve</c> result).</summary>
+    public static LspWorkspaceSymbol? ParseWorkspaceSymbol(JsonNode? node) =>
+        ParseOneWorkspaceSymbol(node);
+
     public static string? TryUriToLocalPath(string? uri)
     {
         if (string.IsNullOrWhiteSpace(uri))
@@ -125,8 +129,7 @@ public static class LspNavigationParser
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
-        var location = ParseOneLocation(node["location"]);
-        if (location == null)
+        if (!TryParseLocation(node["location"], out var location, out var hasRange) || location == null)
             return null;
 
         return new LspWorkspaceSymbol
@@ -134,35 +137,48 @@ public static class LspNavigationParser
             Name = name!,
             Kind = node["kind"]?.GetValue<int>() ?? 0,
             ContainerName = node["containerName"]?.GetValue<string>(),
-            Location = location
+            Location = location,
+            HasRange = hasRange,
+            Raw = node.DeepClone()
         };
     }
 
     private static LspLocation? ParseOneLocation(JsonNode? node)
     {
+        TryParseLocation(node, out var location, out _);
+        return location;
+    }
+
+    private static bool TryParseLocation(JsonNode? node, out LspLocation? location, out bool hasRange)
+    {
+        location = null;
+        hasRange = false;
         if (node == null)
-            return null;
+            return false;
 
         // LocationLink: { targetUri, targetRange, targetSelectionRange }
         var targetUri = node["targetUri"]?.GetValue<string>();
         if (!string.IsNullOrWhiteSpace(targetUri))
         {
             var range = node["targetSelectionRange"] ?? node["targetRange"];
-            return FromUriAndRange(targetUri, range);
+            location = FromUriAndRange(targetUri!, range, out hasRange);
+            return true;
         }
 
-        // Location: { uri, range }
+        // Location: { uri, range? }
         var uri = node["uri"]?.GetValue<string>();
         if (string.IsNullOrWhiteSpace(uri))
-            return null;
+            return false;
 
-        return FromUriAndRange(uri, node["range"]);
+        location = FromUriAndRange(uri!, node["range"], out hasRange);
+        return true;
     }
 
-    private static LspLocation? FromUriAndRange(string uri, JsonNode? range)
+    private static LspLocation FromUriAndRange(string uri, JsonNode? range, out bool hasRange)
     {
         var start = range?["start"];
         var end = range?["end"];
+        hasRange = start != null;
         var line = start?["line"]?.GetValue<int>() ?? 0;
         var character = start?["character"]?.GetValue<int>() ?? 0;
         return new LspLocation

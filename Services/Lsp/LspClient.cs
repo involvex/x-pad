@@ -35,6 +35,7 @@ public sealed class LspClient : IAsyncDisposable
     private bool _supportsRename;
     private bool _supportsPrepareRename;
     private bool _supportsWorkspaceSymbol;
+    private bool _supportsWorkspaceSymbolResolve;
     private readonly string _rootUri;
 
     /// <summary>True when the server advertised incremental <c>textDocumentSync</c>.</summary>
@@ -51,6 +52,9 @@ public sealed class LspClient : IAsyncDisposable
 
     /// <summary>True when the server advertised <c>workspaceSymbolProvider</c>.</summary>
     public bool SupportsWorkspaceSymbol => _supportsWorkspaceSymbol;
+
+    /// <summary>True when the server advertised <c>workspaceSymbolProvider.resolveProvider</c>.</summary>
+    public bool SupportsWorkspaceSymbolResolve => _supportsWorkspaceSymbolResolve;
 
     public event Action<string, IReadOnlyList<LspDiagnostic>>? DiagnosticsReceived;
 
@@ -154,7 +158,13 @@ public sealed class LspClient : IAsyncDisposable
                 },
                 ["workspace"] = new JsonObject
                 {
-                    ["symbol"] = new JsonObject()
+                    ["symbol"] = new JsonObject
+                    {
+                        ["resolveSupport"] = new JsonObject
+                        {
+                            ["properties"] = new JsonArray { "location" }
+                        }
+                    }
                 }
             },
             ["clientInfo"] = new JsonObject
@@ -170,6 +180,7 @@ public sealed class LspClient : IAsyncDisposable
         _supportsRename = LspCapabilities.SupportsRename(result);
         _supportsPrepareRename = LspCapabilities.SupportsPrepareRename(result);
         _supportsWorkspaceSymbol = LspCapabilities.SupportsWorkspaceSymbol(result);
+        _supportsWorkspaceSymbolResolve = LspCapabilities.SupportsWorkspaceSymbolResolve(result);
         await NotifyAsync("initialized", new JsonObject());
         _initialized = true;
     }
@@ -329,6 +340,29 @@ public sealed class LspClient : IAsyncDisposable
         catch
         {
             return [];
+        }
+    }
+
+    /// <summary>
+    /// Resolve a workspace symbol that omitted <c>location.range</c> until follow-up.
+    /// Returns null when resolve is unsupported, the symbol has no raw JSON, or the request fails.
+    /// </summary>
+    public async Task<LspWorkspaceSymbol?> ResolveWorkspaceSymbolAsync(LspWorkspaceSymbol symbol)
+    {
+        if (!_initialized || !_supportsWorkspaceSymbolResolve || symbol.Raw is not JsonObject)
+            return null;
+
+        try
+        {
+            if (symbol.Raw.DeepClone() is not JsonObject raw)
+                return null;
+
+            var result = await RequestAsync("workspaceSymbol/resolve", raw);
+            return LspNavigationParser.ParseWorkspaceSymbol(result);
+        }
+        catch
+        {
+            return null;
         }
     }
 
