@@ -1887,20 +1887,54 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        LspWorkspaceSymbol chosen;
         if (symbols.Count == 1)
         {
-            if (!await JumpToLspLocationAsync(symbols[0].Location, "Symbol"))
-                StatusText = "Symbol target not on disk";
+            chosen = symbols[0];
+        }
+        else
+        {
+            var dialog = new WorkspaceSymbolsWindow(symbols);
+            var hit = await dialog.ShowDialog<WorkspaceSymbolHit?>(owner);
+            if (hit == null)
+                return;
+            chosen = hit.Symbol;
+        }
+
+        await JumpToWorkspaceSymbolAsync(client, chosen);
+    }
+
+    private async Task JumpToWorkspaceSymbolAsync(LspClient client, LspWorkspaceSymbol symbol)
+    {
+        var target = symbol;
+        var openedAtOrigin = false;
+
+        if (!symbol.HasRange && client.SupportsWorkspaceSymbolResolve)
+        {
+            StatusText = "Resolving symbol…";
+            var resolved = await client.ResolveWorkspaceSymbolAsync(symbol);
+            if (resolved is { HasRange: true })
+            {
+                target = resolved;
+            }
+            else
+            {
+                openedAtOrigin = true;
+            }
+        }
+        else if (!symbol.HasRange)
+        {
+            openedAtOrigin = true;
+        }
+
+        if (!await JumpToLspLocationAsync(target.Location, "Symbol"))
+        {
+            StatusText = "Symbol target not on disk";
             return;
         }
 
-        var dialog = new WorkspaceSymbolsWindow(symbols);
-        var hit = await dialog.ShowDialog<WorkspaceSymbolHit?>(owner);
-        if (hit == null)
-            return;
-
-        if (!await JumpToLspLocationAsync(hit.Location, "Symbol"))
-            StatusText = "Symbol target not on disk";
+        if (openedAtOrigin)
+            StatusText = "Symbol: opened at start of file (no range)";
     }
 
     private async Task<bool> JumpToLspLocationAsync(LspLocation target, string label)

@@ -41,6 +41,9 @@ public class LspWorkspaceSymbolParserTests
         Assert.Equal(2, hit.Location.Character);
         Assert.Equal(10, hit.Location.EndLine);
         Assert.Equal(5, hit.Location.EndCharacter);
+        Assert.True(hit.HasRange);
+        Assert.NotNull(hit.Raw);
+        Assert.Equal("Foo", hit.Raw!["name"]?.GetValue<string>());
     }
 
     [Fact]
@@ -68,16 +71,42 @@ public class LspWorkspaceSymbolParserTests
         Assert.Null(hit.ContainerName);
         Assert.Equal(3, hit.Location.Line);
         Assert.Equal(4, hit.Location.Character);
+        Assert.True(hit.HasRange);
     }
 
     [Fact]
-    public void ParseWorkspaceSymbols_uri_only_location_opens_at_origin()
+    public void ParseWorkspaceSymbols_range_at_origin_still_HasRange()
+    {
+        var json = JsonNode.Parse("""
+            [
+              {
+                "name": "Top",
+                "kind": 5,
+                "location": {
+                  "uri": "file:///C:/src/top.cs",
+                  "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 0, "character": 3 }
+                  }
+                }
+              }
+            ]
+            """);
+        var hit = Assert.Single(LspNavigationParser.ParseWorkspaceSymbols(json));
+        Assert.True(hit.HasRange);
+        Assert.Equal(0, hit.Location.Line);
+        Assert.Equal(0, hit.Location.Character);
+    }
+
+    [Fact]
+    public void ParseWorkspaceSymbols_uri_only_location_HasRange_false()
     {
         var json = JsonNode.Parse("""
             [
               {
                 "name": "NeedsResolve",
                 "kind": 12,
+                "data": { "id": 42 },
                 "location": { "uri": "file:///C:/src/c.rs" }
               }
             ]
@@ -88,6 +117,36 @@ public class LspWorkspaceSymbolParserTests
         Assert.Equal("file:///C:/src/c.rs", hit.Location.Uri);
         Assert.Equal(0, hit.Location.Line);
         Assert.Equal(0, hit.Location.Character);
+        Assert.False(hit.HasRange);
+        Assert.NotNull(hit.Raw);
+        Assert.Equal(42, hit.Raw!["data"]?["id"]?.GetValue<int>());
+    }
+
+    [Fact]
+    public void ParseWorkspaceSymbol_resolve_payload_fills_range()
+    {
+        var json = JsonNode.Parse("""
+            {
+              "name": "NeedsResolve",
+              "kind": 12,
+              "data": { "id": 42 },
+              "location": {
+                "uri": "file:///C:/src/c.rs",
+                "range": {
+                  "start": { "line": 20, "character": 4 },
+                  "end": { "line": 20, "character": 16 }
+                }
+              }
+            }
+            """);
+        var hit = LspNavigationParser.ParseWorkspaceSymbol(json);
+        Assert.NotNull(hit);
+        Assert.Equal("NeedsResolve", hit!.Name);
+        Assert.True(hit.HasRange);
+        Assert.Equal(20, hit.Location.Line);
+        Assert.Equal(4, hit.Location.Character);
+        Assert.Equal(16, hit.Location.EndCharacter);
+        Assert.Equal(42, hit.Raw!["data"]?["id"]?.GetValue<int>());
     }
 
     [Fact]
@@ -137,6 +196,18 @@ public class LspWorkspaceSymbolParserTests
         Assert.True(LspCapabilities.SupportsWorkspaceSymbol(JsonNode.Parse(
             """{"capabilities":{"workspaceSymbolProvider":true}}""")));
         Assert.True(LspCapabilities.SupportsWorkspaceSymbol(JsonNode.Parse(
+            """{"capabilities":{"workspaceSymbolProvider":{"resolveProvider":true}}}""")));
+    }
+
+    [Fact]
+    public void SupportsWorkspaceSymbolResolve_reads_boolean_and_options()
+    {
+        Assert.False(LspCapabilities.SupportsWorkspaceSymbolResolve(null));
+        Assert.False(LspCapabilities.SupportsWorkspaceSymbolResolve(JsonNode.Parse(
+            """{"capabilities":{"workspaceSymbolProvider":true}}""")));
+        Assert.False(LspCapabilities.SupportsWorkspaceSymbolResolve(JsonNode.Parse(
+            """{"capabilities":{"workspaceSymbolProvider":{"resolveProvider":false}}}""")));
+        Assert.True(LspCapabilities.SupportsWorkspaceSymbolResolve(JsonNode.Parse(
             """{"capabilities":{"workspaceSymbolProvider":{"resolveProvider":true}}}""")));
     }
 }
