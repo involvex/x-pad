@@ -1,6 +1,12 @@
 # Changelog
 
 
+
+## 0.5.12 - 2026-11-28
+
+- feat(lsp): resolve workspace symbols with URI-only locations
+- chore(cursor): add hybrid Avalonia project rules
+- docs: add Microsoft Store badge to README and docs site
 ## 0.5.11 - 2026-11-27
 
 - feat(lsp): go to symbol in workspace via workspace/symbol
