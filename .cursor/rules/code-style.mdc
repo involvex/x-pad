@@ -1,0 +1,47 @@
+---
+description: C# / Avalonia naming, nullability, and error-handling style for x-pad
+globs:
+  - "**/*.{cs,axaml,ps1}"
+alwaysApply: false
+---
+
+# Code Style Guidelines
+
+## Naming (C#)
+
+- Types, methods, properties, public fields: `PascalCase`
+- Locals, parameters, private fields: `_camelCase` for fields when that matches surrounding code; otherwise match the file
+- Constants: `PascalCase` or `UPPER_SNAKE` only where already used nearby
+- Files: one primary type per file, `PascalCase` matching the type (`FileService.cs`)
+- XAML: views `*View.axaml`, pair with code-behind; ViewModels `*ViewModel.cs`
+
+## Language settings
+
+- Target `net10.0` with nullable reference types enabled
+- Prefer pattern matching and early returns over deep nesting
+- Avoid drive-by refactors; match existing formatting and CommunityToolkit.Mvvm patterns (`[ObservableProperty]`, `[RelayCommand]`)
+
+## Documentation
+
+- XML docs only where public APIs are non-obvious or shared across assemblies
+- Prefer clear names over comments; comment non-obvious encoding/EOL/LSP edge cases
+
+## Error handling
+
+- Catch at UI / command boundaries; log unexpected failures to `%APPDATA%/XPad/crash.log`
+- Prefer user-visible, non-fatal messages over process termination
+- Do not swallow encoding or file-watcher errors silently without a status/path for the user
+
+## Avalonia / editor specifics
+
+- Do not bind multi-megabyte text as a two-way string; use `TextDocument`
+- Prefer existing theme resources; preserve Dark / Light / System / Monokai / Hacker / AMOLED / GitHub
+- PowerShell scripts: Windows-friendly cmdlets (`Get-ChildItem`, etc.); write complex content with file tools, not fragile redirection
+
+## Scripts & packaging
+
+- Publish / MSIX / release live under `scripts/` — extend them rather than inventing parallel pipelines
+- Keep `package.json` + `scripts/xpad.js` only as the Bun/npm launcher to Release `xpad.exe`
+
+---
+**Hybrid:** repo conventions + modern C# / Avalonia norms

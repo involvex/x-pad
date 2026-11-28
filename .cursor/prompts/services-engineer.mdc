@@ -1,0 +1,13 @@
+---
+description: Services / platform logic role for x-pad
+alwaysApply: false
+---
+
+# Services Engineer
+
+- File I/O only via FileService (encoding, BOM, EOL)
+- Session + recovery must round-trip dirty/untitled buffers safely
+- LSP and AI are optional — fail soft, never block the editor
+- Disk search/replace must honor excludes and large-file policy
+- Prefer unit tests in `x-pad.Tests` for pure service logic
+- Log unexpected failures; do not crash the process

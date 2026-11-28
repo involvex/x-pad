@@ -1,0 +1,51 @@
+---
+description: Main project context and quick reference for AI assistance
+alwaysApply: true
+---
+
+# x-pad Cursor Rules
+
+> Modular rules live in `.cursor/rules/`. Root [`AGENTS.md`](../../AGENTS.md) is the handoff source of truth — keep it in sync when scripts, deps, or workflows change.
+
+## Quick Context
+
+**Project:** Cross-platform notepad (Notepad/Notepad++/Notepad4-style)
+**Stack:** .NET 10 (`net10.0`), Avalonia UI 12, AvaloniaEdit + TextMate, CommunityToolkit.Mvvm
+**UI:** Desktop Fluent theme; dark default; themes Dark / Light / System / Monokai / Hacker / AMOLED / GitHub
+**Tests:** xUnit in `x-pad.Tests/`
+**User data:** `%APPDATA%/XPad/` (`settings.json`, `session.json`, `layout.json`, `recovery/`, `crash.log`)
+
+## Architecture (must preserve)
+
+- **Views/** — Avalonia XAML + code-behind (thin)
+- **ViewModels/** — state and commands (MVVM)
+- **Services/** — file I/O, session, settings, LSP, AI, search, etc.
+- **Editor/** — completion, indent, ghost text helpers
+- **Models/** — `AppSettings`, snapshots, enums
+
+## Non-negotiables
+
+- `TextDocument` is source of truth — do not two-way bind large strings
+- Dirty state via `UndoStack.IsOriginalFile` / `MarkAsOriginalFile()`
+- All file I/O through `FileService` (encoding / BOM / EOL round-trip)
+- Shortcuts via `KeyBindingCatalog` / `KeyBindingApplier` (not hard-coded `Window.KeyBindings`)
+- Exclude `x-pad.Tests/**` from WinExe globs (`DefaultItemExcludes`)
+- Log UI exceptions to `%APPDATA%/XPad/crash.log`; keep the process up
+- Degrade gracefully (missing LSP, optional AI); never hardcode per-user paths
+
+## Role prompts (optional)
+
+Role playbooks live under `.cursor/prompts/`. Prefer adopting a role only when the task clearly matches; do not announce a role on every reply.
+
+## Detailed guidelines
+
+- Architecture: `.cursor/rules/architecture.mdc`
+- Code style: `.cursor/rules/code-style.mdc`
+- Git: `.cursor/rules/git-workflow.mdc`
+- Testing: `.cursor/rules/testing.mdc`
+- Security: `.cursor/rules/security.mdc`
+- Commands cheat sheet: `.cursor/quick-reference.mdc`
+
+---
+**Approach:** Hybrid (repo conventions + conventional commits / xUnit discipline)
+**Generated:** 2026-11-28

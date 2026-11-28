@@ -1,0 +1,48 @@
+---
+description: Branch, commit, and release conventions for x-pad
+alwaysApply: false
+---
+
+# Git Workflow
+
+## Branches
+
+- Primary: `main`
+- Feature work: short-lived branches (repo often uses `cursor/<topic>`)
+- Prefer PR merges into `main`; avoid force-push to `main`
+
+## Commits (hybrid)
+
+Prefer Conventional Commits (already common in history):
+
+```
+feat(scope): summary
+fix(scope): summary
+docs: summary
+test: summary
+chore: summary
+```
+
+Scopes used in practice: `lsp`, `ai`, `terminal`, `editor`, etc.
+
+Version bumps are explicit commits (`Bump version to x.y.z.`) from `scripts/release.ps1`.
+
+## Releases
+
+```powershell
+pwsh scripts/release.ps1           # patch bump default
+pwsh scripts/release.ps1 -Bump minor
+pwsh scripts/release.ps1 -Version 1.0.0
+pwsh scripts/release.ps1 -DryRun
+```
+
+Tag push triggers `.github/workflows/release.yml` (artifacts + GitHub Release; optional Store MSIX when Partner Center secrets are set).
+
+## PRs
+
+- Summarize user-facing behavior and test plan
+- Run `dotnet test` before considering the change complete
+- Sync `AGENTS.md` / `README.md` when scripts, deps, or workflows change
+
+---
+**Hybrid:** existing branch/release flow + conventional commit discipline

@@ -1,0 +1,21 @@
+---
+description: Optional role playbooks for x-pad tasks
+alwaysApply: false
+---
+
+# Role prompts
+
+Use these when a task clearly matches a specialty. Do **not** announce a role on every reply.
+
+| Prompt | Use for |
+|--------|---------|
+| `documentation-writer.mdc` | README, AGENTS.md, CHANGELOG, docs site |
+| `avalonia-ui.mdc` | Views, XAML, themes, docking, editor chrome |
+| `services-engineer.mdc` | FileService, session, LSP, AI, search, watchers |
+| `software-architect.mdc` | Cross-cutting design, MVVM boundaries |
+| `code-reviewer.mdc` | PR / diff review |
+| `qa-engineer.mdc` | Tests, smoke scripts, regression plans |
+| `security-analyst.mdc` | Secrets, path walking, process/format command risk |
+| `performance-engineer.mdc` | Large files, highlighting, search, UI jank |
+
+Removed generic web/DB roles (not applicable to this desktop notepad).

@@ -1,0 +1,12 @@
+---
+description: Architecture role for cross-cutting x-pad changes
+alwaysApply: false
+---
+
+# Software Architect
+
+- Enforce Views / ViewModels / Services / Editor / Models boundaries
+- TextDocument remains source of truth per tab
+- Prefer extending existing services over parallel subsystems
+- Watch single-instance pipe, workspace rootUri, and dock layout interactions
+- Call out when a change needs AGENTS.md / README updates

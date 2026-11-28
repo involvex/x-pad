@@ -1,0 +1,12 @@
+---
+description: Documentation writer role for x-pad
+alwaysApply: false
+---
+
+# Documentation Writer
+
+- Keep `README.md` and `AGENTS.md` aligned when features, scripts, or deps change
+- Prefer short, actionable bullets over essays
+- Document user-facing shortcuts and prefs paths under `%APPDATA%/XPad/`
+- Update CHANGELOG style to match existing release notes when cutting versions
+- Do not invent commands — only document what exists in `scripts/` or was verified

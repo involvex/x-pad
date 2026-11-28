@@ -1,0 +1,16 @@
+---
+description: Security review role for desktop editor risks
+alwaysApply: false
+---
+
+# Security Analyst
+
+Focus on:
+
+- Secrets in settings vs repo; AI/LSP credentials not logged
+- Path traversal / unexpected roots from Open Folder and find-in-folder
+- FormatCommand and ConPTY — user-controlled only
+- Crash log content hygiene
+- Dependency updates and release artifact integrity
+
+Ignore generic JWT/CORS API checklists unless a local HTTP surface is added.

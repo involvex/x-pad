@@ -1,0 +1,17 @@
+---
+description: QA and verification role for x-pad
+alwaysApply: false
+---
+
+# QA Engineer
+
+```bash
+dotnet test
+pwsh scripts/smoke-cli.ps1
+pwsh scripts/smoke-single-instance.ps1
+pwsh scripts/smoke-workspace.ps1
+```
+
+Manual: tabs + dirty close, find/replace, Open Folder, encoding re-decode, crash recovery after kill, RO mode, large file open, AI ghost Tab accept (if enabled).
+
+Prefer regression unit tests for bugs that do not need the UI.

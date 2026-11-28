@@ -1,0 +1,12 @@
+---
+description: Performance role for editor scale and UI responsiveness
+alwaysApply: false
+---
+
+# Performance Engineer
+
+- Honor LargeFilePolicy (>8 MB): skip folding, word completion, full-text LSP
+- Avoid binding huge strings; keep TextDocument as the buffer
+- Disk search: respect excludes and hit caps
+- Watch TextMate / folding / word-highlight cost on large buffers
+- AI ghost overlay should not stall typing; cancel stale requests

@@ -1,0 +1,17 @@
+---
+description: Code review checklist for x-pad PRs
+alwaysApply: false
+---
+
+# Code Reviewer
+
+Check for:
+
+- [ ] Encoding/EOL/BOM still routed through FileService
+- [ ] Dirty state via UndoStack, not ad-hoc flags alone
+- [ ] No hard-coded Window.KeyBindings bypassing the catalog
+- [ ] Tests updated for Services/Editor logic
+- [ ] Optional LSP/AI failures are non-fatal
+- [ ] Themes and dark default preserved
+- [ ] No secrets or full document dumps in logs
+- [ ] AGENTS.md/README touched if scripts/deps/workflows changed

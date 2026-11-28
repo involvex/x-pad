@@ -1,0 +1,49 @@
+---
+description: Avalonia MVVM architecture and folder layout for x-pad
+globs:
+  - "**/*.{cs,axaml}"
+alwaysApply: false
+---
+
+# Architecture Patterns
+
+## Type
+
+Desktop Avalonia app (WinExe), not a web/API backend.
+
+## Folder map
+
+| Path | Role |
+|------|------|
+| `Views/` | MainWindow, DocumentEditor, FileTreePanel, Preferences, find dialogs |
+| `ViewModels/` | MainWindowViewModel, DocumentViewModel, Preferences, FileTree, Dock tools |
+| `Services/` | FileService, Session, Settings, Recovery, LSP, AI, search, updater, etc. |
+| `Editor/` | Completions, IndentStyle, InlineGhostText |
+| `Models/` | AppSettings, FileSnapshot, LineEndingKind |
+| `scripts/` | publish, MSIX, smoke, release (PowerShell) |
+| `packaging/windows/` | AppxManifest template |
+| `x-pad.Tests/` | xUnit unit tests |
+| `docs/` | User/docs site content |
+
+## MVVM rules
+
+- Keep views thin; put state and `ICommand` / CommunityToolkit commands in ViewModels
+- Own one `TextDocument` per tab (`DocumentViewModel`); editor binds to the document, not a giant string property
+- Route reusable logic to Services; keep Editor helpers small and UI-agnostic where possible
+- Dock shell: `DockControl` in MainWindow; documents from `Tabs` ItemsSource; `DockLayoutSanitizer` strips saved documents on load
+
+## Feature touchpoints
+
+- Encoding / EOL / BOM: `FileService` only
+- Session restore + crash recovery: `SessionService` / `RecoveryService`
+- Workspace / explorer: `WorkspaceService` + FileTree; LSP `rootUri` follows workspace folder
+- Large files (>8 MB): `LargeFilePolicy` — plain open, skip folding / word completion / full-text LSP
+- Keybindings: settings `KeyBindings` + catalog/applier
+- Single-instance + pipe handoff: `SingleInstanceService` (Windows)
+
+## Graceful degradation
+
+Optional LSP and AI must fail soft. Missing servers or providers must not crash the editor.
+
+---
+**Hybrid:** current x-pad layout + standard Avalonia MVVM boundaries

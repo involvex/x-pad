@@ -1,0 +1,46 @@
+---
+description: Security practices for a desktop editor (files, settings, AI/LSP credentials)
+alwaysApply: false
+---
+
+# Security Best Practices
+
+## Secrets & settings
+
+- Never commit API keys, Partner Center secrets, or tokens
+- AI provider keys and LSP config belong in user settings under `%APPDATA%/XPad/`, not in the repo
+- `.env` Store helper vars (`PFN`, `SID`, `STORE_ID`, `URL`) stay local; do not paste secrets into chat or logs
+
+## File & path safety
+
+- Treat paths from CLI, Open Folder, and find-in-folder as untrusted input
+- Respect workspace excludes (`.git`, `node_modules`, `bin`, `obj`, `.vs`) when walking disks
+- Honor read-only file attributes and the in-app RO toggle
+- Large-file path: skip heavy features above 8 MB (`LargeFilePolicy`)
+
+## Process & shell
+
+- Embedded ConPTY terminal runs user commands — do not auto-execute untrusted content from documents
+- Format-on-save / `FormatCommand` substitutes `$FILE` — keep command strings user-controlled via settings, not remote content
+- Single-instance named pipe: only accept local handoff of file paths as designed
+
+## Logging
+
+- Crash log: `%APPDATA%/XPad/crash.log` — no API keys, tokens, or full document bodies
+- AI debug dock may show provider traffic in debug mode — keep it opt-in
+
+## Dependencies & shipping
+
+- Prefer `dotnet` restore with lock/consistent package versions from the csproj
+- MSIX / Store / GitHub Releases: unsigned Store submit only via CI secrets; skip GitHub updater for Store installs (`PackageIdentity`)
+- Audit Avalonia / AvaloniaEdit / TextMate updates for regressions before release
+
+## Checklist before release
+
+- [ ] No secrets in repo or release notes
+- [ ] `dotnet test` green
+- [ ] Smoke CLI / single-instance / workspace as needed
+- [ ] Version bump via `scripts/release.ps1` (or intentional dry-run)
+
+---
+**Hybrid:** desktop-app threat model + existing XPad data layout

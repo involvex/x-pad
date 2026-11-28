@@ -1,0 +1,61 @@
+---
+description: Commands, paths, and stack cheat sheet for x-pad
+alwaysApply: false
+---
+
+# Quick Reference
+
+## Commands
+
+```bash
+dotnet restore
+dotnet build
+dotnet run
+dotnet test
+dotnet run -c Release
+
+dotnet run -- path\to\file.txt
+dotnet run -- missing-new.txt      # empty buffer; Save creates file
+dotnet run -- path\to\folder       # open workspace
+
+dotnet build -c Release && bun link   # global xpad → Release xpad.exe
+xpad --help
+```
+
+```powershell
+pwsh scripts/publish-win-x64.ps1
+pwsh scripts/publish-win-x64.ps1 -Mode selfcontained
+pwsh scripts/publish-msix.ps1 -Install
+pwsh scripts/release.ps1
+pwsh scripts/smoke-cli.ps1
+pwsh scripts/smoke-single-instance.ps1
+pwsh scripts/smoke-workspace.ps1
+```
+
+## Important paths
+
+| Path | Purpose |
+|------|---------|
+| `Views/`, `ViewModels/`, `Services/`, `Editor/`, `Models/` | App layers |
+| `x-pad.Tests/` | xUnit |
+| `scripts/` | Publish, MSIX, smoke, release |
+| `packaging/windows/AppxManifest.xml` | MSIX template |
+| `%APPDATA%/XPad/` | settings, session, layout, recovery, crash.log |
+
+## Stack
+
+- .NET 10 / C# nullable
+- Avalonia 12 + AvaloniaEdit + TextMateSharp
+- CommunityToolkit.Mvvm
+- Iciclecreek.Avalonia.Terminal (ConPTY)
+- QuestPDF (export), System.Drawing.Common (print on Windows)
+
+## Patterns to remember
+
+1. `TextDocument` per tab; dirty via UndoStack
+2. I/O only through `FileService`
+3. Keybindings via catalog/applier
+4. Optional LSP/AI — fail soft
+
+---
+**Generated:** 2026-11-28 (hybrid, corrected for Avalonia)

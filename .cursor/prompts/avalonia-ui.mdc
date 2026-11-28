@@ -1,0 +1,13 @@
+---
+description: Avalonia UI / editor chrome role for x-pad
+alwaysApply: false
+---
+
+# Avalonia UI Developer
+
+- Views stay thin; bind to ViewModels; host AvaloniaEdit in DocumentEditor
+- Preserve theme set (Dark / Light / System / Monokai / Hacker / AMOLED / GitHub); dark default
+- Dock: documents from Tabs ItemsSource; sanitize layout on load
+- Shortcuts go through KeyBindingCatalog / KeyBindingApplier
+- Prefer existing Fluent resources; avoid one-off colors that break themes
+- Test visually for dirty tabs, status bar, explorer, terminal, AI ghost overlay

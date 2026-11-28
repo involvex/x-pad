@@ -1,0 +1,52 @@
+---
+description: xUnit testing and smoke checklist for x-pad
+globs:
+  - "**/x-pad.Tests/**"
+  - "**/*Tests.cs"
+  - "**/scripts/smoke-*.ps1"
+alwaysApply: false
+---
+
+# Testing Guidelines
+
+## Unit tests
+
+- Framework: xUnit (`x-pad.Tests/`)
+- SDK: Microsoft.NET.Test.Sdk; coverlet.collector present
+- Keep tests out of the WinExe project via `DefaultItemExcludes`
+
+```bash
+dotnet test
+```
+
+## What to cover
+
+- Encoding / EOL / BOM round-trips (`FileService`)
+- Session / recovery serialization edge cases
+- Pure helpers (search, indent detection, keybinding catalog, sanitizers)
+- Prefer focused unit tests over UI automation for ViewModels/services
+
+## Patterns
+
+- Descriptive names: `Method_Scenario_Expected`
+- Independent tests; no shared mutable temp state without cleanup
+- Use temp directories under the test run, not `%APPDATA%/XPad`
+
+## Smoke (manual / script)
+
+```powershell
+pwsh scripts/smoke-cli.ps1
+pwsh scripts/smoke-single-instance.ps1  # skips if xpad already running
+pwsh scripts/smoke-workspace.ps1
+```
+
+Manual checklist (see `AGENTS.md`): tabs + dirty close, themes, find/replace, Open Folder, encoding re-decode, crash recovery, Open with.
+
+## Requirements (hybrid)
+
+- New logic in Services/Editor should ship with unit tests when practical
+- Bug fixes should add a regression test when the failure is reproducible without the UI
+- Do not require 80% UI coverage; prioritize encoding, session, and search correctness
+
+---
+**Hybrid:** existing xUnit + smoke scripts; stronger coverage on critical services
